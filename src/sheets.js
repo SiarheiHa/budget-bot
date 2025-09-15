@@ -84,3 +84,5 @@ export async function appendTransaction({
 
   console.log("✅ Транзакция добавлена!");
 }
+
+export const sheets = { getBalances, appendTransaction };
