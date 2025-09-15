@@ -1,64 +1,49 @@
-// Обработчик команды /add
-// Реализует пошаговый диалог: бот задаёт вопросы, а ответы сохраняются в state.
-// В конце — вызывает sheets.appendTransaction().
-
+// addHandler.js
 import {
   parseDateDDMMYYYY,
   parseAmount,
   formatDateToDisplay,
 } from "../utils.js";
 
-// Списки категорий и кошельков
-const categories = [
-  "зп Сергей",
-  "зп Аня",
-  "аренда гараж",
-  "продукты",
-  "машина - обслуживание",
-  "машина - топливо",
-  "транспорт",
-  "школа",
-  "вкусняшки",
-  "жку",
-  "продажа",
-  "перевод",
-  "Даша",
-  "помощь",
-  "еда вне дома",
-  "одежда и обувь",
-  "развлечения",
-  "услуги",
-  "дом",
-  "медицина",
-  "хозтовары",
-  "косметика",
-  "кешбек",
-  "подарки",
-];
-
-const wallets = [
-  "наличные Сергей",
-  "наличные Аня",
-  "МТБ Сергей",
-  "МТБ Аня",
-  "статусбанк",
-  "халва",
-  "альфа кредит",
-  "копилка",
-];
+import { mainKeyboard, removeKeyboard } from "../utils.js";
 
 export function registerAddHandler(bot, { sheets, state, logger }) {
   bot.onText(/^\/add$/, async (msg) => {
     const chatId = msg.chat.id;
-    logger.info(`/add от пользователя ${chatId}`);
-
-    // Создаём состояние для пользователя
-    state.set(chatId, { step: "date", data: {} });
-
     await bot.sendMessage(
       chatId,
-      "Введите дату операции (в формате ДД.ММ.ГГГГ):"
+      "Начинаем добавление транзакции...",
+      removeKeyboard
     );
+    logger.info(`/add от пользователя ${chatId}`);
+
+    try {
+      // Получаем категории и кошельки из таблицы
+      const [categories, wallets] = await Promise.all([
+        sheets.getCategories(),
+        sheets.getWallets(),
+      ]);
+
+      // Сохраняем в состоянии для последующего использования
+      state.set(chatId, {
+        step: "date",
+        data: {},
+        categories,
+        wallets,
+      });
+
+      await bot.sendMessage(
+        chatId,
+        "Введите дату операции (в формате ДД.ММ.ГГГГ):"
+      );
+    } catch (err) {
+      logger.error("Ошибка при получении категорий/кошельков", err);
+      await bot.sendMessage(
+        chatId,
+        "Произошла ошибка при инициализации ❌",
+        mainKeyboard
+      );
+    }
   });
 
   // Универсальный обработчик для всех сообщений — маршрутизируем по state
@@ -68,6 +53,9 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
     // Если пользователь не в процессе добавления — выходим
     const userState = state.get(chatId);
     if (!userState) return;
+
+    // Пропускаем команды, начинающиеся с /
+    if (msg.text && msg.text.startsWith("/")) return;
 
     const text = msg.text?.trim();
     if (!text) return;
@@ -98,10 +86,10 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
         userState.data.amount = amount;
         userState.step = "category";
 
-        // Создаем клавиатуру с категориями
+        // Создаем клавиатуру с категориями из таблицы
         const categoryKeyboard = {
           reply_markup: {
-            keyboard: categories.map((cat) => [cat]),
+            keyboard: userState.categories.map((cat) => [cat]),
             resize_keyboard: true,
             one_time_keyboard: true,
           },
@@ -110,7 +98,7 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
         await bot.sendMessage(chatId, "Выберите категорию:", categoryKeyboard);
       } else if (userState.step === "category") {
         // Проверяем, что выбрана существующая категория
-        if (!categories.includes(text)) {
+        if (!userState.categories.includes(text)) {
           await bot.sendMessage(
             chatId,
             "Пожалуйста, выберите категорию из предложенных вариантов."
@@ -121,10 +109,10 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
         userState.data.category = text;
         userState.step = "wallet";
 
-        // Создаем клавиатуру с кошельками
+        // Создаем клавиатуру с кошельками из таблицы
         const walletKeyboard = {
           reply_markup: {
-            keyboard: wallets.map((wallet) => [wallet]),
+            keyboard: userState.wallets.map((wallet) => [wallet]),
             resize_keyboard: true,
             one_time_keyboard: true,
           },
@@ -133,7 +121,7 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
         await bot.sendMessage(chatId, "Выберите кошелёк:", walletKeyboard);
       } else if (userState.step === "wallet") {
         // Проверяем, что выбран существующий кошелек
-        if (!wallets.includes(text)) {
+        if (!userState.wallets.includes(text)) {
           await bot.sendMessage(
             chatId,
             "Пожалуйста, выберите кошелёк из предложенных вариантов."
@@ -162,11 +150,14 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
 
         // Чистим state
         state.del(chatId);
+
+        await bot.sendMessage(chatId, "Что дальше?", mainKeyboard);
       }
     } catch (err) {
       logger.error("Ошибка в сценарии /add", err);
       await bot.sendMessage(chatId, "Произошла ошибка при добавлении ❌");
       state.del(chatId);
+      await bot.sendMessage(chatId, "Что дальше?", mainKeyboard);
     }
   });
 }

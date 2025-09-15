@@ -116,27 +116,6 @@ async function appendTransaction({ date, amount, category, wallet, note }) {
   console.log("✅ Транзакция добавлена!");
 }
 
-// Быстрая проверка: node src/sheets.js test
-if (process.argv[2] === "test") {
-  (async () => {
-    try {
-      console.log("Тестирование функций sheets.js...");
-
-      const bal = await getBalances();
-      console.log("Балансы (getBalances):");
-      console.table(bal);
-
-      const cats = await getCategories();
-      console.log("Категории (getCategories):", cats);
-
-      const wals = await getWallets();
-      console.log("Кошельки (getWallets):", wals);
-    } catch (err) {
-      console.error("Ошибка при тестировании:", err.message || err);
-    }
-  })();
-}
-
 export const sheets = {
   getWallets,
   appendTransaction,

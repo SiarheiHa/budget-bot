@@ -110,3 +110,17 @@ export function sanitizeText(s, maxLen = 200) {
   if (t.length > maxLen) t = t.slice(0, maxLen);
   return t;
 }
+
+export const mainKeyboard = {
+  reply_markup: {
+    keyboard: [["Добавить транзакцию (/add)"], ["Показать баланс (/balance)"]],
+    resize_keyboard: true,
+    one_time_keyboard: false,
+  },
+};
+
+export const removeKeyboard = {
+  reply_markup: {
+    remove_keyboard: true,
+  },
+};
