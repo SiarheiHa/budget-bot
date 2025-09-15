@@ -1,31 +1,35 @@
 // startHandler.js
-import { mainKeyboard } from "../utils.js";
+import { mainKeyboard, showMainKeyboard } from "../utils.js";
 
 export function registerStartHandler(bot, deps) {
+  const { logger } = deps;
+
   bot.onText(/^\/start$/, async (msg) => {
     const chatId = msg.chat.id;
-    deps.logger.info(`/start от пользователя ${chatId}`);
+    logger.info(`/start от пользователя ${chatId}`);
 
-    await bot.sendMessage(
+    await showMainKeyboard(
+      bot,
       chatId,
-      "Привет! 👋 Я бот для учёта бюджета.\n\n" +
-        "Выберите действие из меню ниже:",
-      mainKeyboard
+      "Привет! 👋 Я бот для учёта бюджета.\n\nВыберите действие из меню ниже:"
     );
   });
 
-  // Обработчик для текстовых команд из меню
+  // Обработчик для кнопки "Добавить транзакцию"
   bot.onText(/Добавить транзакцию/, async (msg) => {
     const chatId = msg.chat.id;
-    deps.logger.info(`Меню: Добавить транзакцию от пользователя ${chatId}`);
-    // Имитируем команду /add
+    logger.info(`Меню: Добавить транзакцию от пользователя ${chatId}`);
+
+    // Эмулируем команду /add
     await bot.sendMessage(chatId, "/add");
   });
 
+  // Обработчик для кнопки "Показать баланс"
   bot.onText(/Показать баланс/, async (msg) => {
     const chatId = msg.chat.id;
-    deps.logger.info(`Меню: Показать баланс от пользователя ${chatId}`);
-    // Имитируем команду /balance
+    logger.info(`Меню: Показать баланс от пользователя ${chatId}`);
+
+    // Эмулируем команду /balance
     await bot.sendMessage(chatId, "/balance");
   });
 }

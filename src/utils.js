@@ -124,3 +124,7 @@ export const removeKeyboard = {
     remove_keyboard: true,
   },
 };
+
+export function showMainKeyboard(bot, chatId, text = "Выберите действие:") {
+  return bot.sendMessage(chatId, text, mainKeyboard);
+}

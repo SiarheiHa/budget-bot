@@ -1,7 +1,5 @@
-// Обработчик команды /balance
-// Тянет данные из Google Sheets через sheets.getBalances()
-// Форматирует в читаемый текст и отправляет пользователю.
-import { removeKeyboard, mainKeyboard } from "../utils.js";
+// balanceHandler.js
+import { showMainKeyboard, removeKeyboard } from "../utils.js";
 
 export function registerBalanceHandler(bot, { sheets, logger }) {
   bot.onText(/^\/balance$/, async (msg) => {
@@ -13,25 +11,18 @@ export function registerBalanceHandler(bot, { sheets, logger }) {
       const balances = await sheets.getBalances();
 
       if (!balances || balances.length === 0) {
-        await bot.sendMessage(chatId, "Балансов пока нет 😕", mainKeyboard);
+        await bot.sendMessage(chatId, "Балансов пока нет 😕");
+        await showMainKeyboard(bot, chatId);
         return;
       }
 
-      // balances ожидаем в виде [{ name: "Кошелек", balance: 123 }]
       const text = balances.map((b) => `💰 ${b.name}: ${b.balance}`).join("\n");
-
-      await bot.sendMessage(
-        chatId,
-        `Текущие балансы:\n\n${text}`,
-        mainKeyboard
-      );
+      await bot.sendMessage(chatId, `Текущие балансы:\n\n${text}`);
+      await showMainKeyboard(bot, chatId);
     } catch (err) {
       logger.error("Ошибка при получении балансов", err);
-      await bot.sendMessage(
-        chatId,
-        "Не удалось получить балансы ❌",
-        mainKeyboard
-      );
+      await bot.sendMessage(chatId, "Не удалось получить балансы ❌");
+      await showMainKeyboard(bot, chatId);
     }
   });
 }

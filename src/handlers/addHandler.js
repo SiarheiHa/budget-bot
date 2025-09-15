@@ -3,18 +3,14 @@ import {
   parseDateDDMMYYYY,
   parseAmount,
   formatDateToDisplay,
+  showMainKeyboard,
+  removeKeyboard,
 } from "../utils.js";
 
-import { mainKeyboard, removeKeyboard } from "../utils.js";
-
 export function registerAddHandler(bot, { sheets, state, logger }) {
+  // Обработчик команды /add
   bot.onText(/^\/add$/, async (msg) => {
     const chatId = msg.chat.id;
-    await bot.sendMessage(
-      chatId,
-      "Начинаем добавление транзакции...",
-      removeKeyboard
-    );
     logger.info(`/add от пользователя ${chatId}`);
 
     try {
@@ -34,33 +30,32 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
 
       await bot.sendMessage(
         chatId,
+        "Начинаем добавление транзакции...",
+        removeKeyboard
+      );
+
+      await bot.sendMessage(
+        chatId,
         "Введите дату операции (в формате ДД.ММ.ГГГГ):"
       );
     } catch (err) {
       logger.error("Ошибка при получении категорий/кошельков", err);
-      await bot.sendMessage(
-        chatId,
-        "Произошла ошибка при инициализации ❌",
-        mainKeyboard
-      );
+      await bot.sendMessage(chatId, "Произошла ошибка при инициализации ❌");
+      await showMainKeyboard(bot, chatId);
     }
   });
 
-  // Универсальный обработчик для всех сообщений — маршрутизируем по state
+  // Обработчик сообщений для диалога добавления транзакции
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
-
-    // Если пользователь не в процессе добавления — выходим
     const userState = state.get(chatId);
-    if (!userState) return;
 
-    // Пропускаем команды, начинающиеся с /
-    if (msg.text && msg.text.startsWith("/")) return;
+    // Если пользователь не в процессе добавления или это команда - выходим
+    if (!userState || (msg.text && msg.text.startsWith("/"))) return;
 
     const text = msg.text?.trim();
     if (!text) return;
 
-    // Пошаговый сценарий
     try {
       if (userState.step === "date") {
         const date = parseDateDDMMYYYY(text);
@@ -148,16 +143,17 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
 
         await bot.sendMessage(chatId, "✅ Запись добавлена в таблицу!");
 
-        // Чистим state
+        // Чистим state и возвращаем основную клавиатуру
         state.del(chatId);
-
-        await bot.sendMessage(chatId, "Что дальше?", mainKeyboard);
+        await showMainKeyboard(bot, chatId, "Что дальше?");
       }
     } catch (err) {
       logger.error("Ошибка в сценарии /add", err);
       await bot.sendMessage(chatId, "Произошла ошибка при добавлении ❌");
+
+      // Чистим state и возвращаем основную клавиатуру даже при ошибке
       state.del(chatId);
-      await bot.sendMessage(chatId, "Что дальше?", mainKeyboard);
+      await showMainKeyboard(bot, chatId, "Что дальше?");
     }
   });
 }
