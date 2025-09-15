@@ -1,4 +1,3 @@
-// src/sheets.js
 import dotenv from "dotenv";
 dotenv.config();
 
@@ -21,10 +20,48 @@ async function getSheetsClient() {
 }
 
 /**
+ * Вспомогательная функция для получения данных из указанного диапазона
+ * @param {string} range - диапазон ячеек
+ * @returns {Promise<Array<string>>} - массив непустых значений
+ */
+async function getValuesFromRange(range) {
+  if (!spreadsheetId) throw new Error("SPREADSHEET_ID не задан в .env");
+
+  const sheets = await getSheetsClient();
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range,
+  });
+
+  const rows = res.data.values || [];
+  // Преобразуем двумерный массив в одномерный и фильтруем пустые значения
+  return rows
+    .flat()
+    .map((value) => (value ? value.toString().trim() : ""))
+    .filter((value) => value !== "");
+}
+
+/**
+ * Возвращает массив категорий из диапазона Categories!A2:A50
+ * @returns {Promise<Array<string>>}
+ */
+async function getCategories() {
+  return getValuesFromRange("Categories!A2:A50");
+}
+
+/**
+ * Возвращает массив кошельков из диапазона Wallets!B2:B20
+ * @returns {Promise<Array<string>>}
+ */
+async function getWallets() {
+  return getValuesFromRange("Wallets!B2:B20");
+}
+
+/**
  * Возвращает массив объектов { name, balance } из диапазона Wallets!B2:C
  * Ожидается: в B2:B — имя кошелька, в C2:C — баланс (число или текст с запятой)
  */
-export async function getBalances() {
+async function getBalances() {
   if (!spreadsheetId) throw new Error("SPREADSHEET_ID не задан в .env");
 
   const sheets = await getSheetsClient();
@@ -59,13 +96,7 @@ if (process.argv[2] === "test") {
 
 // запись в таблицу
 
-export async function appendTransaction({
-  date,
-  amount,
-  category,
-  wallet,
-  note,
-}) {
+async function appendTransaction({ date, amount, category, wallet, note }) {
   const sheets = await getSheetsClient();
 
   // Порядок колонок: A, B, C, D, E, F, G
@@ -85,4 +116,30 @@ export async function appendTransaction({
   console.log("✅ Транзакция добавлена!");
 }
 
-export const sheets = { getBalances, appendTransaction };
+// Быстрая проверка: node src/sheets.js test
+if (process.argv[2] === "test") {
+  (async () => {
+    try {
+      console.log("Тестирование функций sheets.js...");
+
+      const bal = await getBalances();
+      console.log("Балансы (getBalances):");
+      console.table(bal);
+
+      const cats = await getCategories();
+      console.log("Категории (getCategories):", cats);
+
+      const wals = await getWallets();
+      console.log("Кошельки (getWallets):", wals);
+    } catch (err) {
+      console.error("Ошибка при тестировании:", err.message || err);
+    }
+  })();
+}
+
+export const sheets = {
+  getWallets,
+  appendTransaction,
+  getBalances,
+  getCategories,
+};

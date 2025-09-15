@@ -8,6 +8,45 @@ import {
   formatDateToDisplay,
 } from "../utils.js";
 
+// Списки категорий и кошельков
+const categories = [
+  "зп Сергей",
+  "зп Аня",
+  "аренда гараж",
+  "продукты",
+  "машина - обслуживание",
+  "машина - топливо",
+  "транспорт",
+  "школа",
+  "вкусняшки",
+  "жку",
+  "продажа",
+  "перевод",
+  "Даша",
+  "помощь",
+  "еда вне дома",
+  "одежда и обувь",
+  "развлечения",
+  "услуги",
+  "дом",
+  "медицина",
+  "хозтовары",
+  "косметика",
+  "кешбек",
+  "подарки",
+];
+
+const wallets = [
+  "наличные Сергей",
+  "наличные Аня",
+  "МТБ Сергей",
+  "МТБ Аня",
+  "статусбанк",
+  "халва",
+  "альфа кредит",
+  "копилка",
+];
+
 export function registerAddHandler(bot, { sheets, state, logger }) {
   bot.onText(/^\/add$/, async (msg) => {
     const chatId = msg.chat.id;
@@ -58,20 +97,62 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
         }
         userState.data.amount = amount;
         userState.step = "category";
-        await bot.sendMessage(chatId, "Введите категорию:");
+
+        // Создаем клавиатуру с категориями
+        const categoryKeyboard = {
+          reply_markup: {
+            keyboard: categories.map((cat) => [cat]),
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        };
+
+        await bot.sendMessage(chatId, "Выберите категорию:", categoryKeyboard);
       } else if (userState.step === "category") {
+        // Проверяем, что выбрана существующая категория
+        if (!categories.includes(text)) {
+          await bot.sendMessage(
+            chatId,
+            "Пожалуйста, выберите категорию из предложенных вариантов."
+          );
+          return;
+        }
+
         userState.data.category = text;
         userState.step = "wallet";
-        await bot.sendMessage(chatId, "Введите кошелёк:");
+
+        // Создаем клавиатуру с кошельками
+        const walletKeyboard = {
+          reply_markup: {
+            keyboard: wallets.map((wallet) => [wallet]),
+            resize_keyboard: true,
+            one_time_keyboard: true,
+          },
+        };
+
+        await bot.sendMessage(chatId, "Выберите кошелёк:", walletKeyboard);
       } else if (userState.step === "wallet") {
+        // Проверяем, что выбран существующий кошелек
+        if (!wallets.includes(text)) {
+          await bot.sendMessage(
+            chatId,
+            "Пожалуйста, выберите кошелёк из предложенных вариантов."
+          );
+          return;
+        }
+
         userState.data.wallet = text;
         userState.step = "note";
+
+        // Убираем клавиатуру
         await bot.sendMessage(
           chatId,
-          "Введите примечание (или оставьте пустым):"
+          "Введите примечание (или отправьте '-' для пустого примечания):",
+          { reply_markup: { remove_keyboard: true } }
         );
       } else if (userState.step === "note") {
-        userState.data.note = text;
+        // Если пользователь отправил "-", сохраняем пустую строку
+        userState.data.note = text === "-" ? "" : text;
 
         // Всё собрано — сохраняем
         await sheets.appendTransaction(userState.data);
