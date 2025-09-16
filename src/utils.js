@@ -128,3 +128,13 @@ export const removeKeyboard = {
 export function showMainKeyboard(bot, chatId, text = "Выберите действие:") {
   return bot.sendMessage(chatId, text, mainKeyboard);
 }
+
+export function createCancelableKeyboard(items) {
+  return {
+    reply_markup: {
+      keyboard: [...items.map((item) => [item]), ["❌ Отмена"]],
+      resize_keyboard: true,
+      one_time_keyboard: true,
+    },
+  };
+}

@@ -5,6 +5,7 @@ import {
   formatDateToDisplay,
   showMainKeyboard,
   removeKeyboard,
+  createCancelableKeyboard,
 } from "../utils.js";
 
 export function registerAddHandler(bot, { sheets, state, logger }) {
@@ -30,13 +31,9 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
 
       await bot.sendMessage(
         chatId,
-        "Начинаем добавление транзакции...",
-        removeKeyboard
-      );
-
-      await bot.sendMessage(
-        chatId,
-        "Введите дату операции (в формате ДД.ММ.ГГГГ):"
+        "Начинаем добавление транзакции...\n\n" +
+          "Введите дату операции (в формате ДД.ММ.ГГГГ) или нажмите '❌ Отмена' для отмены:",
+        createCancelableKeyboard([])
       );
     } catch (err) {
       logger.error("Ошибка при получении категорий/кошельков", err);
@@ -56,47 +53,58 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
     const text = msg.text?.trim();
     if (!text) return;
 
+    // Проверка на отмену
+    if (text === "❌ Отмена") {
+      state.del(chatId);
+      await bot.sendMessage(chatId, "❌ Операция отменена.");
+      await showMainKeyboard(bot, chatId);
+      return;
+    }
+
     try {
       if (userState.step === "date") {
         const date = parseDateDDMMYYYY(text);
         if (!date) {
           await bot.sendMessage(
             chatId,
-            "Неверный формат даты, попробуйте ещё раз (ДД.ММ.ГГГГ)."
+            "Неверный формат даты, попробуйте ещё раз (ДД.ММ.ГГГГ) или нажмите '❌ Отмена':",
+            createCancelableKeyboard([])
           );
           return;
         }
         userState.data.date = formatDateToDisplay(date);
         userState.step = "amount";
-        await bot.sendMessage(chatId, "Введите сумму:");
+        await bot.sendMessage(
+          chatId,
+          "Введите сумму или нажмите '❌ Отмена':",
+          createCancelableKeyboard([])
+        );
       } else if (userState.step === "amount") {
         const amount = parseAmount(text);
         if (amount === null) {
           await bot.sendMessage(
             chatId,
-            "Неверная сумма, попробуйте ещё раз (например: 123.45)."
+            "Неверная сумма, попробуйте ещё раз (например: 123.45) или нажмите '❌ Отмена':",
+            createCancelableKeyboard([])
           );
           return;
         }
         userState.data.amount = amount;
         userState.step = "category";
 
-        // Создаем клавиатуру с категориями из таблицы
-        const categoryKeyboard = {
-          reply_markup: {
-            keyboard: userState.categories.map((cat) => [cat]),
-            resize_keyboard: true,
-            one_time_keyboard: true,
-          },
-        };
-
-        await bot.sendMessage(chatId, "Выберите категорию:", categoryKeyboard);
+        // Создаем клавиатуру с категориями из таблицы и кнопкой отмены
+        await bot.sendMessage(
+          chatId,
+          "Выберите категорию или нажмите '❌ Отмена':",
+          createCancelableKeyboard(userState.categories)
+        );
       } else if (userState.step === "category") {
         // Проверяем, что выбрана существующая категория
         if (!userState.categories.includes(text)) {
           await bot.sendMessage(
             chatId,
-            "Пожалуйста, выберите категорию из предложенных вариантов."
+            "Пожалуйста, выберите категорию из предложенных вариантов или нажмите '❌ Отмена':",
+            createCancelableKeyboard(userState.categories)
           );
           return;
         }
@@ -104,22 +112,19 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
         userState.data.category = text;
         userState.step = "wallet";
 
-        // Создаем клавиатуру с кошельками из таблицы
-        const walletKeyboard = {
-          reply_markup: {
-            keyboard: userState.wallets.map((wallet) => [wallet]),
-            resize_keyboard: true,
-            one_time_keyboard: true,
-          },
-        };
-
-        await bot.sendMessage(chatId, "Выберите кошелёк:", walletKeyboard);
+        // Создаем клавиатуру с кошельками из таблицы и кнопкой отмены
+        await bot.sendMessage(
+          chatId,
+          "Выберите кошелёк или нажмите '❌ Отмена':",
+          createCancelableKeyboard(userState.wallets)
+        );
       } else if (userState.step === "wallet") {
         // Проверяем, что выбран существующий кошелек
         if (!userState.wallets.includes(text)) {
           await bot.sendMessage(
             chatId,
-            "Пожалуйста, выберите кошелёк из предложенных вариантов."
+            "Пожалуйста, выберите кошелёк из предложенных вариантов или нажмите '❌ Отмена':",
+            createCancelableKeyboard(userState.wallets)
           );
           return;
         }
@@ -130,8 +135,8 @@ export function registerAddHandler(bot, { sheets, state, logger }) {
         // Убираем клавиатуру
         await bot.sendMessage(
           chatId,
-          "Введите примечание (или отправьте '-' для пустого примечания):",
-          { reply_markup: { remove_keyboard: true } }
+          "Введите примечание (или отправьте '-' для пустого примечания) или нажмите '❌ Отмена':",
+          createCancelableKeyboard([])
         );
       } else if (userState.step === "note") {
         // Если пользователь отправил "-", сохраняем пустую строку

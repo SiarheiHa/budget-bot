@@ -12,12 +12,15 @@ const required = ["BOT_TOKEN", "SPREADSHEET_ID"];
 // Проверяем наличие обязательных переменных окружения
 for (const key of required) {
   if (!process.env[key]) {
-    console.error(
-      `❌ Ошибка: переменная окружения ${key} не задана. Добавьте её в .env`
-    );
-    // В реальном проекте можно завершать процесс:
-    // process.exit(1);
-    // Но пока оставим только предупреждение, чтобы не мешать отладке.
+    const errorMessage = `❌ Ошибка: переменная окружения ${key} не задана. Добавьте её в .env`;
+    console.error(errorMessage);
+
+    // В ПРОДАКШЕНЕ ЗАВЕРШАЕМ ПРОЦЕСС
+    if (process.env.NODE_ENV === "production") {
+      process.exit(1);
+    }
+    // В режиме разработки можно продолжить, но бросить предупреждение
+    throw new Error(errorMessage);
   }
 }
 

@@ -1,9 +1,15 @@
-import dotenv from "dotenv";
-dotenv.config();
-
+import { config } from "./config.js";
 import { google } from "googleapis";
 
-const spreadsheetId = process.env.SPREADSHEET_ID;
+// Константы диапазонов
+const RANGES = {
+  CATEGORIES: "Categories!A2:A50",
+  WALLETS: "Wallets!B2:B20",
+  WALLETS_FULL: "Wallets!B2:C",
+  TRANSACTIONS: "Transactions!A:G",
+};
+
+const spreadsheetId = config.spreadsheetId;
 
 // Используем credentials.json в корне проекта
 const auth = new google.auth.GoogleAuth({
@@ -20,20 +26,27 @@ async function getSheetsClient() {
 }
 
 /**
- * Вспомогательная функция для получения данных из указанного диапазона
+ * Вспомогательная функция для получения сырых данных из указанного диапазона
  * @param {string} range - диапазон ячеек
- * @returns {Promise<Array<string>>} - массив непустых значений
+ * @returns {Promise<Array<Array<string>>>} - двумерный массив значений
  */
-async function getValuesFromRange(range) {
-  if (!spreadsheetId) throw new Error("SPREADSHEET_ID не задан в .env");
-
+async function getSheetValues(range) {
   const sheets = await getSheetsClient();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
     range,
   });
 
-  const rows = res.data.values || [];
+  return res.data.values || [];
+}
+
+/**
+ * Вспомогательная функция для получения данных из указанного диапазона
+ * @param {string} range - диапазон ячеек
+ * @returns {Promise<Array<string>>} - массив непустых значений
+ */
+async function getValuesFromRange(range) {
+  const rows = await getSheetValues(range);
   // Преобразуем двумерный массив в одномерный и фильтруем пустые значения
   return rows
     .flat()
@@ -46,7 +59,7 @@ async function getValuesFromRange(range) {
  * @returns {Promise<Array<string>>}
  */
 async function getCategories() {
-  return getValuesFromRange("Categories!A2:A50");
+  return getValuesFromRange(RANGES.CATEGORIES);
 }
 
 /**
@@ -54,7 +67,7 @@ async function getCategories() {
  * @returns {Promise<Array<string>>}
  */
 async function getWallets() {
-  return getValuesFromRange("Wallets!B2:B20");
+  return getValuesFromRange(RANGES.WALLETS);
 }
 
 /**
@@ -62,20 +75,11 @@ async function getWallets() {
  * Ожидается: в B2:B — имя кошелька, в C2:C — баланс (число или текст с запятой)
  */
 async function getBalances() {
-  if (!spreadsheetId) throw new Error("SPREADSHEET_ID не задан в .env");
+  const rows = await getSheetValues(RANGES.WALLETS_FULL);
 
-  const sheets = await getSheetsClient();
-  const range = "Wallets!B2:C";
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range,
-  });
-
-  const rows = res.data.values || [];
   return rows.map((r) => {
     const name = r[0] || "";
     const raw = r[1] || "";
-    // Приводим строку к числу: заменяем запятую на точку, убираем пробелы
     const num = Number(String(raw).replace(/\s/g, "").replace(",", "."));
     return { name, balance: isNaN(num) ? 0 : num };
   });
@@ -105,7 +109,7 @@ async function appendTransaction({ date, amount, category, wallet, note }) {
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: "Transactions!A:G",
+    range: RANGES.TRANSACTIONS,
     valueInputOption: "USER_ENTERED",
     insertDataOption: "INSERT_ROWS", // вставляем строку в конец
     requestBody: {
