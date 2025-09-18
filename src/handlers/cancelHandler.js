@@ -1,5 +1,4 @@
-// cancelHandler.js
-import { showMainKeyboard } from "../utils.js";
+import { showMainKeyboard } from "../keyboards.js";
 
 export function registerCancelHandler(bot, { state, logger }) {
   // Обработчик команды /cancel

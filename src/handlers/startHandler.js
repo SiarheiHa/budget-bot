@@ -1,5 +1,4 @@
-// startHandler.js
-import { mainKeyboard, showMainKeyboard } from "../utils.js";
+import { mainKeyboard, showMainKeyboard } from "../keyboards.js";
 
 export function registerStartHandler(bot, deps) {
   const { logger } = deps;

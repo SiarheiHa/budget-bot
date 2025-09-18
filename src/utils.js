@@ -1,42 +1,93 @@
 // Утилиты для парсинга, форматирования и валидации.
-// Комментарии на русском — что делает каждая функция и зачем она нужна.
 
 /**
- * Парсит строку в формате "ДД.ММ.ГГГГ" и возвращает объект Date.
+ * Парсит строку с датой в различных форматах и возвращает объект Date.
+ * Поддерживает форматы:
+ * - "ДД[разделитель]ММ[разделитель]ГГГГ" (полная дата)
+ * - "ДД[разделитель]ММ" (текущий год)
+ * - "ДД" (текущий месяц и год)
+ *
+ * Поддерживает разделители: точка, запятая, слеш, тире, пробел.
+ * Для короткого формата года (две цифры) автоматически определяет век:
+ * - 00-49 → 2000-2049
+ * - 50-99 → 1950-1999
+ *
  * Если строка невалидна — возвращает null.
- * @param {string} text - строка вида "13.09.2025"
+ *
+ * @param {string} text - строка с датой в одном из форматов:
+ *   "13.09.2025", "13/09/2025", "13 09 2025", "13-09-2025",
+ *   "13.09.25", "13.09", "13"
  * @returns {Date|null}
  */
+
 export function parseDateDDMMYYYY(text) {
   if (!text || typeof text !== "string") return null;
-  const parts = text.trim().split(".");
-  if (parts.length !== 3) return null;
 
-  const dd = parseInt(parts[0], 10);
-  const mm = parseInt(parts[1], 10);
-  const yyyy = parseInt(parts[2], 10);
+  // Получаем текущую дату для использования по умолчанию
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1;
+  const currentDay = now.getDate();
 
+  // Заменяем все возможные разделители на точку для единообразной обработки
+  const normalizedText = text
+    .trim()
+    .replace(/[,/\\\s-]/g, ".")
+    .replace(/\.+/g, ".");
+
+  const parts = normalizedText.split(".").filter((part) => part !== "");
+
+  // Обрабатываем разные форматы ввода
+  let day, month, year;
+
+  if (parts.length === 1) {
+    // Только день - используем текущий месяц и год
+    day = parseInt(parts[0], 10);
+    month = currentMonth;
+    year = currentYear;
+  } else if (parts.length === 2) {
+    // День и месяц - используем текущий год
+    day = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10);
+    year = currentYear;
+  } else if (parts.length === 3) {
+    // Полная дата
+    day = parseInt(parts[0], 10);
+    month = parseInt(parts[1], 10);
+    year = parseInt(parts[2], 10);
+
+    // Обрабатываем короткий формат года (две цифры)
+    if (year < 100) {
+      year += year < 50 ? 2000 : 1900;
+    }
+  } else {
+    return null;
+  }
+
+  // Проверяем валидность компонентов даты
   if (
-    Number.isNaN(dd) ||
-    Number.isNaN(mm) ||
-    Number.isNaN(yyyy) ||
-    yyyy < 1900 ||
-    mm < 1 ||
-    mm > 12 ||
-    dd < 1 ||
-    dd > 31
+    Number.isNaN(day) ||
+    Number.isNaN(month) ||
+    Number.isNaN(year) ||
+    year < 1900 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
   ) {
     return null;
   }
 
-  const date = new Date(yyyy, mm - 1, dd);
+  // Проверяем валидность даты
+  const date = new Date(year, month - 1, day);
   if (
-    date.getFullYear() !== yyyy ||
-    date.getMonth() !== mm - 1 ||
-    date.getDate() !== dd
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
   ) {
     return null;
   }
+
   return date;
 }
 
@@ -55,21 +106,6 @@ export function formatDateToDisplay(date) {
 }
 
 /**
- * Приводит Date к строке формата ISO "YYYY-MM-DD",
- * который удобно хранить в Google Sheets (и совместимо с формулами).
- * @param {Date|string} d - Date или строка (второе используется редко)
- * @returns {string} - "2025-09-13"
- */
-export function formatDateToISO(d) {
-  const date = d instanceof Date ? d : new Date(d);
-  if (!(date instanceof Date) || isNaN(date.getTime())) return "";
-  const yyyy = date.getFullYear();
-  const mm = String(date.getMonth() + 1).padStart(2, "0");
-  const dd = String(date.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
-}
-
-/**
  * Парсит сумму из строки — принимает запятую или точку, убирает пробелы.
  * Возвращает число (float) или NaN если не удалось распарсить.
  * @param {string|number} text
@@ -81,60 +117,4 @@ export function parseAmount(text) {
   const cleaned = String(text).trim().replace(/\s+/g, "").replace(",", ".");
   const num = parseFloat(cleaned);
   return Number.isFinite(num) ? num : NaN;
-}
-
-/**
- * Форматирует число в денежный вид для вывода пользователю.
- * Пример: 1234.5 -> "1 234,50"
- * @param {number} n
- * @returns {string}
- */
-export function formatCurrency(n) {
-  if (typeof n !== "number" || isNaN(n)) return "0,00";
-  return n.toLocaleString("ru-RU", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-/**
- * Простая валидация короткого текстового поля (примечание, категория и т.д.)
- * Обрезает пробелы и возвращает пустую строку, если input не валидный.
- * @param {string} s
- * @param {number} [maxLen=200]
- * @returns {string}
- */
-export function sanitizeText(s, maxLen = 200) {
-  if (!s && s !== 0) return "";
-  let t = String(s).trim();
-  if (t.length > maxLen) t = t.slice(0, maxLen);
-  return t;
-}
-
-export const mainKeyboard = {
-  reply_markup: {
-    keyboard: [["Добавить транзакцию (/add)"], ["Показать баланс (/balance)"]],
-    resize_keyboard: true,
-    one_time_keyboard: false,
-  },
-};
-
-export const removeKeyboard = {
-  reply_markup: {
-    remove_keyboard: true,
-  },
-};
-
-export function showMainKeyboard(bot, chatId, text = "Выберите действие:") {
-  return bot.sendMessage(chatId, text, mainKeyboard);
-}
-
-export function createCancelableKeyboard(items) {
-  return {
-    reply_markup: {
-      keyboard: [...items.map((item) => [item]), ["❌ Отмена"]],
-      resize_keyboard: true,
-      one_time_keyboard: true,
-    },
-  };
 }

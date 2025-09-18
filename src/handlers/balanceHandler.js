@@ -1,5 +1,5 @@
 // balanceHandler.js
-import { showMainKeyboard, removeKeyboard } from "../utils.js";
+import { showMainKeyboard, removeKeyboard } from "../keyboards.js";
 
 export function registerBalanceHandler(bot, { sheets, logger }) {
   bot.onText(/^\/balance$/, async (msg) => {
