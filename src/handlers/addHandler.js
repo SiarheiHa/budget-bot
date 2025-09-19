@@ -1,49 +1,56 @@
-// addHandler.js
 import {
   parseDateDDMMYYYY,
   parseAmount,
   formatDateToDisplay,
+  createAccessMiddleware,
 } from "../utils.js";
 
-import {
-  createCancelableKeyboard,
-  showMainKeyboard,
-  removeKeyboard,
-} from "../keyboards.js";
+import { createCancelableKeyboard, showMainKeyboard } from "../keyboards.js";
 
-export function registerAddHandler(bot, { sheets, state, logger }) {
+// Добавляем экспорт функции для обработки команды /add
+export async function handleAddCommand(bot, deps, msg) {
+  const { sheets, state, logger } = deps;
+  const chatId = msg.chat.id;
+  logger.info(`/add от пользователя ${chatId}`);
+
+  try {
+    // Получаем категории и кошельки из таблицы
+    const [categories, wallets] = await Promise.all([
+      sheets.getCategories(),
+      sheets.getWallets(),
+    ]);
+
+    // Сохраняем в состоянии для последующего использования
+    state.set(chatId, {
+      step: "date",
+      data: {},
+      categories,
+      wallets,
+    });
+
+    await bot.sendMessage(
+      chatId,
+      "Начинаем добавление транзакции...\n\n" +
+        "Введите дату операции (в формате ДД.ММ.ГГГГ) или нажмите '❌ Отмена' для отмены:",
+      createCancelableKeyboard([])
+    );
+  } catch (err) {
+    logger.error("Ошибка при получении категорий/кошельков", err);
+    await bot.sendMessage(chatId, "Произошла ошибка при инициализации ❌");
+    await showMainKeyboard(bot, chatId);
+  }
+}
+
+export function registerAddHandler(bot, deps) {
   // Обработчик команды /add
-  bot.onText(/^\/add$/, async (msg) => {
-    const chatId = msg.chat.id;
-    logger.info(`/add от пользователя ${chatId}`);
-
-    try {
-      // Получаем категории и кошельки из таблицы
-      const [categories, wallets] = await Promise.all([
-        sheets.getCategories(),
-        sheets.getWallets(),
-      ]);
-
-      // Сохраняем в состоянии для последующего использования
-      state.set(chatId, {
-        step: "date",
-        data: {},
-        categories,
-        wallets,
-      });
-
-      await bot.sendMessage(
-        chatId,
-        "Начинаем добавление транзакции...\n\n" +
-          "Введите дату операции (в формате ДД.ММ.ГГГГ) или нажмите '❌ Отмена' для отмены:",
-        createCancelableKeyboard([])
-      );
-    } catch (err) {
-      logger.error("Ошибка при получении категорий/кошельков", err);
-      await bot.sendMessage(chatId, "Произошла ошибка при инициализации ❌");
-      await showMainKeyboard(bot, chatId);
-    }
-  });
+  const { sheets, state, logger } = deps;
+  const withAccess = createAccessMiddleware(bot, deps);
+  bot.onText(
+    /^\/add$/,
+    withAccess(async (msg) => {
+      await handleAddCommand(bot, deps, msg);
+    })
+  );
 
   // Обработчик сообщений для диалога добавления транзакции
   bot.on("message", async (msg) => {
