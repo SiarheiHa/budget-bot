@@ -1,3 +1,5 @@
+import { MESSAGES } from "./messages.js";
+
 // Утилиты для парсинга, форматирования и валидации.
 
 /**
@@ -159,7 +161,7 @@ export function createAccessMiddleware(bot, deps) {
 
       if (!checkAccess(chatId, config)) {
         logger.warn(`Доступ запрещен для пользователя: ${chatId}`);
-        await bot.sendMessage(chatId, "❌ Доступ запрещен");
+        await bot.sendMessage(chatId, MESSAGES.COMMON.ACCESS_DENIED);
         return;
       }
 
