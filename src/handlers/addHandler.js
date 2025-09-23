@@ -12,6 +12,7 @@ export async function handleAddCommand(bot, deps, msg) {
   const { sheets, state, logger } = deps;
   const chatId = msg.chat.id;
   logger.info(`/add от пользователя ${chatId}`);
+  // console.log(state.get(chatId));
 
   try {
     // Получаем категории и кошельки из таблицы
@@ -64,12 +65,7 @@ export function registerAddHandler(bot, deps) {
     if (!text) return;
 
     // Проверка на отмену
-    if (text === "❌ Отмена") {
-      state.del(chatId);
-      await bot.sendMessage(chatId, "❌ Операция отменена.");
-      await showMainKeyboard(bot, chatId);
-      return;
-    }
+    if (text === "❌ Отмена") return;
 
     try {
       if (userState.step === "date") {

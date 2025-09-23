@@ -1,37 +1,34 @@
 import { showMainKeyboard } from "../keyboards.js";
-import { createAccessMiddleware } from "../utils.js";
+import { MESSAGES } from "../messages.js";
+
+async function handleCancel(bot, deps, msg) {
+  const { state, logger } = deps;
+  const chatId = msg.chat.id;
+
+  if (!state.get(chatId)) return;
+
+  try {
+    logger.info(`Отмена операции от пользователя ${chatId}`);
+    state.del(chatId);
+
+    await bot.sendMessage(chatId, MESSAGES.COMMON.CANCELLED);
+    await showMainKeyboard(bot, chatId);
+  } catch (error) {
+    logger.error(
+      `Ошибка при обработке отмены для пользователя ${chatId}: ${error.message}`,
+      error
+    );
+  }
+}
 
 export function registerCancelHandler(bot, deps) {
-  const { state, logger } = deps;
-  const withAccess = createAccessMiddleware(bot, deps);
+  // Обработчик команды /cancel - без проверки доступа
+  bot.onText(/^\/cancel$/, async (msg) => {
+    await handleCancel(bot, deps, msg);
+  });
 
-  // Обработчик команды /cancel
-  bot.onText(
-    /^\/cancel$/,
-    withAccess(async (msg) => {
-      const chatId = msg.chat.id;
-      logger.info(`/cancel от пользователя ${chatId}`);
-
-      // Очищаем состояние
-      state.del(chatId);
-
-      await bot.sendMessage(chatId, "❌ Операция отменена.");
-      await showMainKeyboard(bot, chatId);
-    })
-  );
-
-  // Обработчик текста "Отмена"
-  bot.onText(
-    /❌ Отмена/,
-    withAccess(async (msg) => {
-      const chatId = msg.chat.id;
-      logger.info(`Отмена операции от пользователя ${chatId}`);
-
-      // Очищаем состояние
-      state.del(chatId);
-
-      await bot.sendMessage(chatId, "❌ Операция отменена.");
-      await showMainKeyboard(bot, chatId);
-    })
-  );
+  // Обработчик текста "Отмена" - без проверки доступа
+  bot.onText(/❌ Отмена/, async (msg) => {
+    await handleCancel(bot, deps, msg);
+  });
 }
