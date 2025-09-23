@@ -6,6 +6,7 @@ import {
 } from "../utils.js";
 
 import { createCancelableKeyboard, showMainKeyboard } from "../keyboards.js";
+import { MESSAGES } from "../messages.js";
 
 // Добавляем экспорт функции для обработки команды /add
 export async function handleAddCommand(bot, deps, msg) {
@@ -31,13 +32,12 @@ export async function handleAddCommand(bot, deps, msg) {
 
     await bot.sendMessage(
       chatId,
-      "Начинаем добавление транзакции...\n\n" +
-        "Введите дату операции (в формате ДД.ММ.ГГГГ) или нажмите '❌ Отмена' для отмены:",
+      MESSAGES.ADD_TRANSACTION.START,
       createCancelableKeyboard([])
     );
   } catch (err) {
     logger.error("Ошибка при получении категорий/кошельков", err);
-    await bot.sendMessage(chatId, "Произошла ошибка при инициализации ❌");
+    await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.INIT_ERROR);
     await showMainKeyboard(bot, chatId);
   }
 }
@@ -73,7 +73,7 @@ export function registerAddHandler(bot, deps) {
         if (!date) {
           await bot.sendMessage(
             chatId,
-            "Неверный формат даты, попробуйте ещё раз (ДД.ММ.ГГГГ) или нажмите '❌ Отмена':",
+            MESSAGES.ADD_TRANSACTION.DATE_INVALID,
             createCancelableKeyboard([])
           );
           return;
@@ -82,7 +82,7 @@ export function registerAddHandler(bot, deps) {
         userState.step = "amount";
         await bot.sendMessage(
           chatId,
-          "Введите сумму или нажмите '❌ Отмена':",
+          MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT,
           createCancelableKeyboard([])
         );
       } else if (userState.step === "amount") {
@@ -90,7 +90,7 @@ export function registerAddHandler(bot, deps) {
         if (amount === null) {
           await bot.sendMessage(
             chatId,
-            "Неверная сумма, попробуйте ещё раз (например: 123.45) или нажмите '❌ Отмена':",
+            MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID,
             createCancelableKeyboard([])
           );
           return;
@@ -101,7 +101,7 @@ export function registerAddHandler(bot, deps) {
         // Создаем клавиатуру с категориями из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
-          "Выберите категорию или нажмите '❌ Отмена':",
+          MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
           createCancelableKeyboard(userState.categories)
         );
       } else if (userState.step === "category") {
@@ -109,7 +109,7 @@ export function registerAddHandler(bot, deps) {
         if (!userState.categories.includes(text)) {
           await bot.sendMessage(
             chatId,
-            "Пожалуйста, выберите категорию из предложенных вариантов или нажмите '❌ Отмена':",
+            MESSAGES.ADD_TRANSACTION.CATEGORY_INVALID,
             createCancelableKeyboard(userState.categories)
           );
           return;
@@ -121,7 +121,7 @@ export function registerAddHandler(bot, deps) {
         // Создаем клавиатуру с кошельками из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
-          "Выберите кошелёк или нажмите '❌ Отмена':",
+          MESSAGES.ADD_TRANSACTION.WALLET_PROMPT,
           createCancelableKeyboard(userState.wallets)
         );
       } else if (userState.step === "wallet") {
@@ -129,7 +129,7 @@ export function registerAddHandler(bot, deps) {
         if (!userState.wallets.includes(text)) {
           await bot.sendMessage(
             chatId,
-            "Пожалуйста, выберите кошелёк из предложенных вариантов или нажмите '❌ Отмена':",
+            MESSAGES.ADD_TRANSACTION.WALLET_INVALID,
             createCancelableKeyboard(userState.wallets)
           );
           return;
@@ -141,7 +141,7 @@ export function registerAddHandler(bot, deps) {
         // Убираем клавиатуру
         await bot.sendMessage(
           chatId,
-          "Введите примечание (или отправьте '-' для пустого примечания) или нажмите '❌ Отмена':",
+          MESSAGES.ADD_TRANSACTION.NOTE_PROMPT,
           createCancelableKeyboard([])
         );
       } else if (userState.step === "note") {
@@ -152,19 +152,19 @@ export function registerAddHandler(bot, deps) {
         await sheets.appendTransaction(userState.data);
         logger.info("Добавлена транзакция", userState.data);
 
-        await bot.sendMessage(chatId, "✅ Запись добавлена в таблицу!");
+        await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.SUCCESS);
 
         // Чистим state и возвращаем основную клавиатуру
         state.del(chatId);
-        await showMainKeyboard(bot, chatId, "Что дальше?");
+        await showMainKeyboard(bot, chatId, MESSAGES.COMMON.WHAT_NEXT);
       }
     } catch (err) {
       logger.error("Ошибка в сценарии /add", err);
-      await bot.sendMessage(chatId, "Произошла ошибка при добавлении ❌");
+      await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.ERROR);
 
       // Чистим state и возвращаем основную клавиатуру даже при ошибке
       state.del(chatId);
-      await showMainKeyboard(bot, chatId, "Что дальше?");
+      await showMainKeyboard(bot, chatId, MESSAGES.COMMON.WHAT_NEXT);
     }
   });
 }
