@@ -5,7 +5,7 @@ import { google } from "googleapis";
 const RANGES = {
   CATEGORIES: "Categories!A2:A50",
   WALLETS: "Wallets!B2:B20",
-  WALLETS_FULL: "Wallets!B2:C",
+  WALLETS_FULL: "Wallets!B2:D",
   TRANSACTIONS: "Transactions!A:G",
 };
 
@@ -71,18 +71,51 @@ async function getWallets() {
 }
 
 /**
- * Возвращает массив объектов { name, balance } из диапазона Wallets!B2:C
- * Ожидается: в B2:B — имя кошелька, в C2:C — баланс (число или текст с запятой)
+ * Возвращает массив объектов { name, balance, currency } из диапазона Wallets!B2:D
+ * Ожидается:
+ * - в B2:B — имя кошелька
+ * - в C2:C — баланс (число или текст с запятой)
+ * - в D2:D — валюта (USD, EUR, RUB и т.д.)
  */
 async function getBalances() {
-  const rows = await getSheetValues(RANGES.WALLETS_FULL);
+  try {
+    const rows = await getSheetValues(RANGES.WALLETS_FULL);
 
-  return rows.map((r) => {
-    const name = r[0] || "";
-    const raw = r[1] || "";
-    const num = Number(String(raw).replace(/\s/g, "").replace(",", "."));
-    return { name, balance: isNaN(num) ? 0 : num };
-  });
+    const balances = rows.map((r) => {
+      try {
+        const name = r[0] || "";
+        const rawBalance = r[1] || "";
+        const currency = r[2] || "";
+
+        // Преобразуем баланс в число
+        const cleanedBalance = String(rawBalance)
+          .replace(/\s/g, "")
+          .replace(",", ".");
+        const num = Number(cleanedBalance);
+
+        // Валидация данных
+        if (name.trim() === "") {
+          console.warn("Обнаружена запись с пустым названием кошелька");
+          return null;
+        }
+
+        return {
+          name: name.trim(),
+          balance: isNaN(num) ? 0 : num,
+          currency: currency.trim().toUpperCase() || "неизвестная валюта", // Значение по умолчанию
+        };
+      } catch (error) {
+        console.warn(`Ошибка обработки строки кошелька: ${error.message}`);
+        return null;
+      }
+    });
+
+    // Фильтруем некорректные записи
+    return balances.filter((balance) => balance !== null);
+  } catch (error) {
+    console.error(`Ошибка получения данных из таблицы: ${error.message}`);
+    throw new Error("Не удалось получить данные о балансах из таблицы");
+  }
 }
 
 // Быстрая проверка: node src/sheets.js test

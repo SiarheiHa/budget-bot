@@ -1,36 +1,60 @@
-import { mainKeyboard, showMainKeyboard } from "../keyboards.js";
+import { mainKeyboard } from "../keyboards.js";
+import { handleAddCommand } from "./addHandler.js";
+import { handleBalanceCommand } from "./balanceHandler.js";
+import { createAccessMiddleware } from "../utils.js";
+import { MESSAGES } from "../messages.js";
 
 export function registerStartHandler(bot, deps) {
   const { logger } = deps;
+  const withAccess = createAccessMiddleware(bot, deps);
 
-  bot.onText(/^\/start$/, async (msg) => {
-    const chatId = msg.chat.id;
-    logger.info(`/start от пользователя ${chatId}`);
+  // Обработчик команды /start
+  bot.onText(
+    /^\/start$/,
+    withAccess(async (bot, deps, msg) => {
+      const chatId = msg.chat.id;
+      try {
+        logger.info(`/start от пользователя ${chatId}`);
 
-    await bot.sendMessage(
-      chatId,
-      "Привет! 👋 Я бот для учёта бюджета.\n\n" +
-        "Выберите действие из меню ниже:\n\n" +
-        "ℹ️ Вы можете отменить операцию в любой момент, нажав '❌ Отмена' или отправив /cancel",
-      mainKeyboard
-    );
-  });
+        await bot.sendMessage(chatId, MESSAGES.START.WELCOME, mainKeyboard);
+      } catch (error) {
+        logger.error(`Ошибка в обработчике /start: ${error.message}`, error);
+        // Не отправляем сообщение об ошибке пользователю, чтобы не спамить
+        // при проблемах с сетью или другими временными ошибками
+      }
+    })
+  );
 
   // Обработчик для кнопки "Добавить транзакцию"
-  bot.onText(/Добавить транзакцию/, async (msg) => {
-    const chatId = msg.chat.id;
-    logger.info(`Меню: Добавить транзакцию от пользователя ${chatId}`);
-
-    // Эмулируем команду /add
-    await bot.sendMessage(chatId, "/add");
-  });
+  bot.onText(
+    /Добавить транзакцию/,
+    withAccess(async (bot, deps, msg) => {
+      const chatId = msg.chat.id;
+      try {
+        logger.info(`Меню: Добавить транзакцию от пользователя ${chatId}`);
+        await handleAddCommand(bot, deps, msg);
+      } catch (error) {
+        logger.error(
+          `Ошибка при добавлении транзакции: ${error.message}`,
+          error
+        );
+        await bot.sendMessage(chatId, MESSAGES.TRANSACTION.ERROR);
+      }
+    })
+  );
 
   // Обработчик для кнопки "Показать баланс"
-  bot.onText(/Показать баланс/, async (msg) => {
-    const chatId = msg.chat.id;
-    logger.info(`Меню: Показать баланс от пользователя ${chatId}`);
-
-    // Эмулируем команду /balance
-    await bot.sendMessage(chatId, "/balance");
-  });
+  bot.onText(
+    /Показать баланс/,
+    withAccess(async (bot, deps, msg) => {
+      const chatId = msg.chat.id;
+      try {
+        logger.info(`Меню: Показать баланс от пользователя ${chatId}`);
+        await handleBalanceCommand(bot, deps, msg);
+      } catch (error) {
+        logger.error(`Ошибка при получении баланса: ${error.message}`, error);
+        await bot.sendMessage(chatId, MESSAGES.BALANCE.ERROR);
+      }
+    })
+  );
 }

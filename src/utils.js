@@ -1,3 +1,5 @@
+import { MESSAGES } from "./messages.js";
+
 // Утилиты для парсинга, форматирования и валидации.
 
 /**
@@ -117,4 +119,53 @@ export function parseAmount(text) {
   const cleaned = String(text).trim().replace(/\s+/g, "").replace(",", ".");
   const num = parseFloat(cleaned);
   return Number.isFinite(num) ? num : NaN;
+}
+
+// функция проверки доступа
+export function checkAccess(chatId, config) {
+  // если список пуст и надо разрешить всем, то раскоментировать строку ниже
+  // if (config.allowedUsers.length === 0) return true;
+  return config.allowedUsers.includes(chatId.toString());
+}
+
+/**
+ * Фабрика для создания middleware проверки доступа.
+ * Создает и возвращает декоратор для обработчиков команд, который проверяет,
+ * имеет ли пользователь право на доступ к боту, прежде чем выполнить основной обработчик.
+ *
+ * @param {TelegramBot} bot - Экземпляр Telegram бота для отправки сообщений
+ * @param {Object} deps - Зависимости, содержащие конфигурацию и логгер
+ * @param {Object} deps.config - Конфигурация приложения с настройками доступа
+ * @param {Object} deps.logger - Логгер для записи событий
+ *
+ * @returns {Function} Декоратор функции-обработчика, который:
+ *   - Проверяет ID чата пользователя против списка разрешенных пользователей
+ *   - Если доступ запрещен: логирует предупреждение и отправляет сообщение об отказе
+ *   - Если доступ разрешен: выполняет переданный обработчик команды
+ *
+ * @example
+ * // Создание middleware с доступом
+ * const withAccess = createAccessMiddleware(bot, deps);
+ *
+ * // Использование middleware для обработчика команды
+ * bot.onText(/\/start/, withAccess(async (bot, deps, msg, match) => {
+ *   // Логика обработки команды для авторизованных пользователей
+ * }));
+ */
+
+export function createAccessMiddleware(bot, deps) {
+  return (handler) => {
+    return async (msg, match) => {
+      const { config, logger } = deps;
+      const chatId = msg.chat.id;
+
+      if (!checkAccess(chatId, config)) {
+        logger.warn(`Доступ запрещен для пользователя: ${chatId}`);
+        await bot.sendMessage(chatId, MESSAGES.COMMON.ACCESS_DENIED);
+        return;
+      }
+
+      return handler(bot, deps, msg, match);
+    };
+  };
 }

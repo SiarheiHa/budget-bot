@@ -32,8 +32,8 @@ const deps = { sheets, state, config, logger };
 function registerHandlers() {
   registerStartHandler(bot, deps);
   registerBalanceHandler(bot, deps);
-  registerAddHandler(bot, deps);
   registerCancelHandler(bot, deps);
+  registerAddHandler(bot, deps);
 }
 
 // Инициализация
