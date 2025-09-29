@@ -78,8 +78,15 @@ export function registerAddHandler(bot, deps) {
           );
           return;
         }
-        userState.data.date = formatDateToDisplay(date);
-        userState.step = "amount";
+        const newState = {
+          ...userState,
+          step: "amount",
+          data: {
+            ...userState.data,
+            date: formatDateToDisplay(date),
+          },
+        };
+        state.set(chatId, newState);
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT,
@@ -95,14 +102,21 @@ export function registerAddHandler(bot, deps) {
           );
           return;
         }
-        userState.data.amount = amount;
-        userState.step = "category";
+        const newState = {
+          ...userState,
+          step: "category",
+          data: {
+            ...userState.data,
+            amount: amount,
+          },
+        };
+        state.set(chatId, newState);
 
         // Создаем клавиатуру с категориями из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
-          createCancelableKeyboard(userState.categories)
+          createCancelableKeyboard(newState.categories)
         );
       } else if (userState.step === "category") {
         // Проверяем, что выбрана существующая категория
@@ -110,19 +124,26 @@ export function registerAddHandler(bot, deps) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.CATEGORY_INVALID,
-            createCancelableKeyboard(userState.categories)
+            createCancelableKeyboard(newState.categories)
           );
           return;
         }
 
-        userState.data.category = text;
-        userState.step = "wallet";
+        const newState = {
+          ...userState,
+          step: "wallet",
+          data: {
+            ...userState.data,
+            category: text,
+          },
+        };
+        state.set(chatId, newState);
 
         // Создаем клавиатуру с кошельками из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.WALLET_PROMPT,
-          createCancelableKeyboard(userState.wallets)
+          createCancelableKeyboard(newState.wallets)
         );
       } else if (userState.step === "wallet") {
         // Проверяем, что выбран существующий кошелек
@@ -130,13 +151,20 @@ export function registerAddHandler(bot, deps) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.WALLET_INVALID,
-            createCancelableKeyboard(userState.wallets)
+            createCancelableKeyboard(newState.wallets)
           );
           return;
         }
 
-        userState.data.wallet = text;
-        userState.step = "note";
+        const newState = {
+          ...userState,
+          step: "note",
+          data: {
+            ...userState.data,
+            wallet: text,
+          },
+        };
+        state.set(chatId, newState);
 
         // Убираем клавиатуру
         await bot.sendMessage(
@@ -146,11 +174,17 @@ export function registerAddHandler(bot, deps) {
         );
       } else if (userState.step === "note") {
         // Если пользователь отправил "-", сохраняем пустую строку
-        userState.data.note = text === "-" ? "" : text;
+        const note = text === "-" ? "" : text;
+
+        // Создаем полные данные транзакции
+        const transactionData = {
+          ...userState.data,
+          note: note,
+        };
 
         // Всё собрано — сохраняем
-        await sheets.appendTransaction(userState.data);
-        logger.info("Добавлена транзакция", userState.data);
+        await sheets.appendTransaction(transactionData);
+        logger.info("Добавлена транзакция", transactionData);
 
         await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.SUCCESS);
 
