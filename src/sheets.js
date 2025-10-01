@@ -11,11 +11,30 @@ const RANGES = {
 
 const spreadsheetId = config.spreadsheetId;
 
-// Используем credentials.json в корне проекта
-const auth = new google.auth.GoogleAuth({
-  keyFile: "credentials.json",
-  scopes: ["https://www.googleapis.com/auth/spreadsheets"],
-});
+// Функция для создания аутентификации
+function createAuth() {
+  // Если есть закодированные credentials в переменной окружения
+  if (config.googleCredentialsB64) {
+    console.log("🔐 Используем аутентификацию через GOOGLE_CREDENTIALS_B64");
+    const credentialsJson = Buffer.from(
+      config.googleCredentialsB64,
+      "base64"
+    ).toString("utf-8");
+    return new google.auth.GoogleAuth({
+      credentials: JSON.parse(credentialsJson),
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+  } else {
+    // Fallback на файл credentials.json для локальной разработки
+    console.log("🔐 Используем аутентификацию через credentials.json");
+    return new google.auth.GoogleAuth({
+      keyFile: "credentials.json",
+      scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+    });
+  }
+}
+
+const auth = createAuth();
 
 let sheetsClient = null;
 async function getSheetsClient() {
