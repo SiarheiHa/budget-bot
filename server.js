@@ -1,4 +1,4 @@
-import bot from "./src/bot.js";
+import "./src/index.js"; // Это запустит вашего бота
 import http from "http";
 
 // Простой HTTP-сервер для health-чеков Render
@@ -15,7 +15,5 @@ const server = http.createServer((req, res) => {
 const PORT = process.env.PORT || 3000;
 
 server.listen(PORT, () => {
-  console.log(`Health check server running on port ${PORT}`);
+  console.log(`🤖 Telegram Bot with health checks running on port ${PORT}`);
 });
-
-console.log("🤖 Telegram Bot started with polling...");
