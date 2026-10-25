@@ -56,7 +56,14 @@ export function registerAddHandler(bot, deps) {
   // Обработчик сообщений для диалога добавления транзакции
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
-    const userState = state.get(chatId);
+    const { MESSAGES } = await import("../messages.js");
+    const { showMainKeyboard } = await import("../keyboards.js");
+    const userState = state.get(chatId, {
+      bot,
+      chatId,
+      messages: { COMMON: MESSAGES.COMMON },
+      keyboards: { showMainKeyboard },
+    });
 
     // Если пользователь не в процессе добавления или это команда - выходим
     if (!userState || (msg.text && msg.text.startsWith("/"))) return;

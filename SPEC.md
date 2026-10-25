@@ -59,9 +59,9 @@ src/
 ## 6. Состояние
 `state.js` — in-memory Map. Структура при `/add`:
 ```js
-{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [] }
+{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [], _ts: <timestamp> }
 ```
-Очищается через `state.del(chatId)`
+TTL: **15 минут**. При истечении `getUserState` удаляет состояние и отправляет пользователю сообщение о истечении сессии с возвратом в главное меню. Очищается через `state.del(chatId)` по завершению/отмене. `updateUserState` обновляет `_ts`.
 
 ## 7. Доступ
 `checkAccess` — сравнивает chatId со списком. `ALLOWED_USERS` теперь **обязателен** - если пустой/не задан, `config.js` падает с понятной ошибкой при старте (и в production делает `process.exit(1)`). Middleware шлёт `ACCESS_DENIED` при запрете. В тестовом `.env` задан `ALLOWED_USERS` - доступ разрешён только указанному ID.
