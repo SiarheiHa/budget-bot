@@ -25,3 +25,12 @@ export function createCancelableKeyboard(items) {
     },
   };
 }
+
+export function createForceReply() {
+  return {
+    reply_markup: {
+      force_reply: true,
+      selective: true,
+    },
+  };
+}

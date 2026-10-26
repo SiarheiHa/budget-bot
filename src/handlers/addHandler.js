@@ -5,7 +5,7 @@ import {
   createAccessMiddleware,
 } from "../utils.js";
 
-import { createCancelableKeyboard, showMainKeyboard } from "../keyboards.js";
+import { createCancelableKeyboard, showMainKeyboard, createForceReply } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
 
 // Добавляем экспорт функции для обработки команды /add
@@ -94,8 +94,8 @@ export function registerAddHandler(bot, deps) {
         });
         await bot.sendMessage(
           chatId,
-          MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT,
-          createCancelableKeyboard([])
+          MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT + "\n\nДля отмены: /cancel",
+          createForceReply()
         );
       } else if (userState.step === "amount") {
         const amount = parseAmount(text);
