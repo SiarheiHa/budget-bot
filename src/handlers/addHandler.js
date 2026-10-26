@@ -85,15 +85,13 @@ export function registerAddHandler(bot, deps) {
           );
           return;
         }
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "amount",
           data: {
             ...userState.data,
             date: formatDateToDisplay(date),
           },
-        };
-        state.set(chatId, newState);
+        });
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT,
@@ -109,21 +107,19 @@ export function registerAddHandler(bot, deps) {
           );
           return;
         }
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "category",
           data: {
             ...userState.data,
             amount: amount,
           },
-        };
-        state.set(chatId, newState);
+        });
 
         // Создаем клавиатуру с категориями из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
-          createCancelableKeyboard(newState.categories)
+          createCancelableKeyboard(userState.categories)
         );
       } else if (userState.step === "category") {
         // Проверяем, что выбрана существующая категория
@@ -136,21 +132,19 @@ export function registerAddHandler(bot, deps) {
           return;
         }
 
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "wallet",
           data: {
             ...userState.data,
             category: text,
           },
-        };
-        state.set(chatId, newState);
+        });
 
         // Создаем клавиатуру с кошельками из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.WALLET_PROMPT,
-          createCancelableKeyboard(newState.wallets)
+          createCancelableKeyboard(userState.wallets)
         );
       } else if (userState.step === "wallet") {
         // Проверяем, что выбран существующий кошелек
@@ -163,15 +157,13 @@ export function registerAddHandler(bot, deps) {
           return;
         }
 
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "note",
           data: {
             ...userState.data,
             wallet: text,
           },
-        };
-        state.set(chatId, newState);
+        });
 
         // Убираем клавиатуру
         await bot.sendMessage(
