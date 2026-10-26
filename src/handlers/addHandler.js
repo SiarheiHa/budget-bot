@@ -127,7 +127,7 @@ export function registerAddHandler(bot, deps) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.CATEGORY_INVALID,
-            createCancelableKeyboard(newState.categories)
+            createCancelableKeyboard(userState.categories)
           );
           return;
         }
@@ -152,7 +152,7 @@ export function registerAddHandler(bot, deps) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.WALLET_INVALID,
-            createCancelableKeyboard(newState.wallets)
+            createCancelableKeyboard(userState.wallets)
           );
           return;
         }
