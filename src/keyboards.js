@@ -1,6 +1,6 @@
 export const mainKeyboard = {
   reply_markup: {
-    keyboard: [["Добавить транзакцию (/add)"], ["Показать баланс (/balance)"]],
+    keyboard: [["Добавить транзакцию"], ["Показать баланс"]],
     resize_keyboard: true,
     one_time_keyboard: false,
   },
