@@ -99,7 +99,7 @@ export function registerAddHandler(bot, deps) {
         );
       } else if (userState.step === "amount") {
         const amount = parseAmount(text);
-        if (amount === null) {
+        if (amount === null || Number.isNaN(amount)) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID,
