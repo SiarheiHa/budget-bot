@@ -2,7 +2,7 @@
   "name": "budget-bot",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
