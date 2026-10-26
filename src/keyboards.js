@@ -21,7 +21,7 @@ export function createCancelableKeyboard(items) {
     reply_markup: {
       keyboard: [...items.map((item) => [item]), ["❌ Отмена"]],
       resize_keyboard: true,
-      one_time_keyboard: true,
+      one_time_keyboard: items.length === 0 ? false : true,
     },
   };
 }
