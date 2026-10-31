@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   appendDigit,
-  appendDoubleZero,
   appendSeparator,
   backspace,
   clearDraft,
@@ -21,13 +20,6 @@ test("amount: цифры и ведущие нули", () => {
   assert.equal(appendDigit("0", "5"), "5");
   assert.equal(appendDigit("0", "0"), "0");
   assert.equal(appendDigit("1", "2"), "12");
-});
-
-test("amount: двойной ноль", () => {
-  assert.equal(appendDoubleZero(""), "0");
-  assert.equal(appendDoubleZero("1"), "100");
-  assert.equal(appendDoubleZero("1,5"), "1,50");
-  assert.equal(appendDoubleZero("1,50"), "1,50");
 });
 
 test("amount: разделитель дробной части", () => {
@@ -70,7 +62,6 @@ test("amount: backspace и очистка", () => {
 
 test("amount: applyAmountAction", () => {
   assert.equal(applyAmountAction("", { type: "digit", value: "7" }), "7");
-  assert.equal(applyAmountAction("7", { type: "doubleZero" }), "700");
   assert.equal(applyAmountAction("7", { type: "separator" }), "7,");
   assert.equal(applyAmountAction("7,5", { type: "sign" }), "-7,5");
   assert.equal(applyAmountAction("-7,5", { type: "backspace" }), "-7,");
@@ -83,7 +74,6 @@ test("amount: parseAmountCallback", () => {
     type: "digit",
     value: "5",
   });
-  assert.deepEqual(parseAmountCallback("v1:amt:00"), { type: "doubleZero" });
   assert.deepEqual(parseAmountCallback("v1:amt:sep"), { type: "separator" });
   assert.deepEqual(parseAmountCallback("v1:amt:back"), { type: "backspace" });
   assert.deepEqual(parseAmountCallback("v1:amt:clear"), { type: "clear" });

@@ -54,10 +54,6 @@ export function appendDigit(draft, digit) {
   });
 }
 
-export function appendDoubleZero(draft) {
-  return appendDigit(appendDigit(draft, "0"), "0");
-}
-
 export function appendSeparator(draft) {
   const parts = splitDraft(draft);
   if (parts.fraction !== null) return toDraft(draft);
@@ -86,8 +82,6 @@ export function applyAmountAction(draft, action) {
   switch (action?.type) {
     case "digit":
       return appendDigit(draft, action.value);
-    case "doubleZero":
-      return appendDoubleZero(draft);
     case "separator":
       return appendSeparator(draft);
     case "backspace":
@@ -104,7 +98,6 @@ export function applyAmountAction(draft, action) {
 export function parseAmountCallback(data) {
   if (typeof data !== "string") return null;
 
-  if (data === "v1:amt:00") return { type: "doubleZero" };
   if (data === "v1:amt:sep") return { type: "separator" };
   if (data === "v1:amt:back") return { type: "backspace" };
   if (data === "v1:amt:clear") return { type: "clear" };

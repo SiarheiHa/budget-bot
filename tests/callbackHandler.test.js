@@ -197,13 +197,14 @@ test("callback: ввод суммы кнопками и переключение
     });
 
   await send("v1:amt:d:5");
-  await send("v1:amt:00");
+  await send("v1:amt:d:0");
+  await send("v1:amt:d:0");
   await send("v1:amt:sep");
   await send("v1:amt:d:5");
   await send("v1:amt:sign");
 
   assert.equal(deps.store.get("1").amountDraft, "-500,5");
-  assert.equal(bot.answers.length, 5);
+  assert.equal(bot.answers.length, 6);
   assert.ok(bot.edits.every((edit) => edit.type === "text"));
   assert.match(bot.edits.at(-1).text, /-500,5/);
 });

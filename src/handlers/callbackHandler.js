@@ -148,8 +148,7 @@ export function registerCallbackHandler(bot, deps) {
 
         if (nextDraft === currentDraft) {
           await answer(
-            amountAction.type === "digit" ||
-              amountAction.type === "doubleZero"
+            amountAction.type === "digit"
               ? {
                   text: MESSAGES.ADD_TRANSACTION.AMOUNT_LIMIT,
                   show_alert: true,

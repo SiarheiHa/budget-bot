@@ -43,20 +43,29 @@ export function createAmountKeyboard() {
   return {
     reply_markup: {
       inline_keyboard: [
-        [digit("1"), digit("2"), digit("3")],
-        [digit("4"), digit("5"), digit("6")],
-        [digit("7"), digit("8"), digit("9")],
         [
-          { text: "00", callback_data: "v1:amt:00" },
-          digit("0"),
+          digit("1"),
+          digit("2"),
+          digit("3"),
+          { text: "⌫", callback_data: "v1:amt:back" },
+        ],
+        [
+          digit("4"),
+          digit("5"),
+          digit("6"),
+          { text: "±", callback_data: "v1:amt:sign" },
+        ],
+        [
+          digit("7"),
+          digit("8"),
+          digit("9"),
           { text: ",", callback_data: "v1:amt:sep" },
         ],
         [
-          { text: "±", callback_data: "v1:amt:sign" },
-          { text: "⌫", callback_data: "v1:amt:back" },
           { text: "Сброс", callback_data: "v1:amt:clear" },
+          digit("0"),
+          { text: "✅ Готово", callback_data: "v1:amt:ok" },
         ],
-        [{ text: "✅ Готово", callback_data: "v1:amt:ok" }],
       ],
     },
   };
