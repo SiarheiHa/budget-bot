@@ -15,6 +15,7 @@ src/
 ├── state.js         # Map состояний пользователей
 ├── utils.js         # парсинг/валидация/доступ
 ├── calendar.js      # генерация календаря и разбор callback-данных
+├── amount.js        # ввод суммы, знак, разбор callback-данных
 ├── keyboards.js     # клавиатуры
 ├── messages.js      # тексты
 ├── logger.js        # консольный логгер
@@ -47,7 +48,7 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 
 ### /add (многошаговый)
 1. date — inline-календарь на текущий месяц: навигация `«`/`»`, строка подписей `Пн–Вс` (noop-кнопки, выровнены с сеткой), `Сегодня`, `Вчера`, `❌ Отмена`. Ручной ввод (`parseDateDDMMYYYY`) остаётся fallback
-2. amount — `parseAmount` (запятая/точка, пробелы), `force_reply`
+2. amount — inline-клавиатура `1–9`, `00`, `,`, `±`, `⌫`, `Сброс`, `✅ Готово`; черновик хранится строкой, поддерживаются отрицательные суммы и до 2 знаков после запятой. Ручной ввод (`parseAmount`) остаётся fallback
 3. category — выбор из загруженных из таблицы
 4. wallet — выбор из загруженных из таблицы
 5. note — ввод или `-` для пропуска
@@ -59,6 +60,7 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 - `cal:day:YYYY-MM-DD` — выбрать дату и перейти к сумме
 - `cal:today`, `cal:yesterday` — быстрый выбор даты
 - `cal:noop` — заглушка для подписей дней недели и пустых ячеек
+- `v1:amt:d:N`, `v1:amt:00`, `v1:amt:sep`, `v1:amt:sign`, `v1:amt:back`, `v1:amt:clear`, `v1:amt:ok` — ввод суммы, знак, удаление, сброс и подтверждение
 - `v1:cancel` — отмена через общий `handleCancel`
 Проверяется доступ (`checkAccess`), на каждый callback отвечает `answerCallbackQuery`. Устаревшие кнопки и неверный шаг дают alert «сессия устарела».
 
@@ -71,7 +73,7 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 ## 6. Состояние
 `state.js` — in-memory Map. Структура при `/add`:
 ```js
-{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [], calendarMessageId: <id>, _ts: <timestamp> }
+{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [], calendarMessageId: <id>, amountMessageId: <id>, amountDraft: '', _ts: <timestamp> }
 ```
 TTL: 15 минут. При истечении `getUserState` удаляет состояние и отправляет пользователю сообщение о истечении сессии с возвратом в главное меню. Очищается через `state.del(chatId)` по завершению/отмене. `updateUserState` обновляет `_ts`.
 
@@ -82,7 +84,9 @@ TTL: 15 минут. При истечении `getUserState` удаляет со
 ## 8. Особенности реализации
 - `addHandler` в `bot.on("message")` ловит все сообщения. Фильтр: если нет state ИЛИ текст начинается с `/` — выход. Кнопка "Отмена" проверяется отдельно.
 - На шаге `date` inline-календарь редактируется на месте; ручной ввод даты также принимается и убирает клавиатуру календаря.
+- На шаге `amount` inline-клавиатура редактируется на месте, черновик хранится в `amountDraft`. Ручной ввод суммы также принимается и убирает клавиатуру. Отрицательные суммы разрешены, ноль — нет.
 - `callbackHandler` проверяет доступ и текущий шаг state, поэтому кнопки из старых сообщений не ломают диалог.
+- `handleCancel` и повторный `/add` убирают обе inline-клавиатуры: календаря и суммы.
 - В `startHandler` при клике по кнопкам вызываются `handleAddCommand`/`handleBalanceCommand` напрямую (оба с проверкой доступа)
 - `sheets.js` при `test` аргументе делает быструю проверку
 - Логгер минимальный, без ротации
