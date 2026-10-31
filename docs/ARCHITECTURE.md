@@ -14,6 +14,7 @@ src/
 ├── sheets.js        # Google Sheets API
 ├── state.js         # Map состояний пользователей
 ├── utils.js         # парсинг/валидация/доступ
+├── calendar.js      # генерация календаря и разбор callback-данных
 ├── keyboards.js     # клавиатуры
 ├── messages.js      # тексты
 ├── logger.js        # консольный логгер
@@ -21,7 +22,8 @@ src/
 │   ├── startHandler.js
 │   ├── addHandler.js
 │   ├── balanceHandler.js
-│   └── cancelHandler.js
+│   ├── cancelHandler.js
+│   └── callbackHandler.js
 └── index.js         # лог о запуске
 ```
 
@@ -44,12 +46,20 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 Меню с кнопками "Добавить транзакцию", "Показать баланс"
 
 ### /add (многошаговый)
-1. date — `parseDateDDMMYYYY` (поддерживает разделители, короткие форматы, 2-значный год)
-2. amount — `parseAmount` (запятая/точка, пробелы)
+1. date — inline-календарь на текущий месяц: навигация `«`/`»`, `Сегодня`, `Вчера`, `❌ Отмена`. Ручной ввод (`parseDateDDMMYYYY`) остаётся fallback
+2. amount — `parseAmount` (запятая/точка, пробелы), `force_reply`
 3. category — выбор из загруженных из таблицы
 4. wallet — выбор из загруженных из таблицы
 5. note — ввод или `-` для пропуска
 Сохранение через `sheets.appendTransaction` с `valueInputOption: "USER_ENTERED"`
+
+### Callback-кнопки
+Единый роутер `callbackHandler` обрабатывает `callback_query`:
+- `cal:nav:YYYY-MM` — перерисовать календарь через `editMessageText`
+- `cal:day:YYYY-MM-DD` — выбрать дату и перейти к сумме
+- `cal:today`, `cal:yesterday` — быстрый выбор даты
+- `v1:cancel` — отмена через общий `handleCancel`
+Проверяется доступ (`checkAccess`), на каждый callback отвечает `answerCallbackQuery`. Устаревшие кнопки и неверный шаг дают alert «сессия устарела».
 
 ### /balance
 `getBalances()` парсит B2:D, приводит баланс к числу, фильтрует пустые имена
@@ -60,7 +70,7 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 ## 6. Состояние
 `state.js` — in-memory Map. Структура при `/add`:
 ```js
-{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [], _ts: <timestamp> }
+{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [], calendarMessageId: <id>, _ts: <timestamp> }
 ```
 TTL: 15 минут. При истечении `getUserState` удаляет состояние и отправляет пользователю сообщение о истечении сессии с возвратом в главное меню. Очищается через `state.del(chatId)` по завершению/отмене. `updateUserState` обновляет `_ts`.
 
@@ -70,6 +80,8 @@ TTL: 15 минут. При истечении `getUserState` удаляет со
 
 ## 8. Особенности реализации
 - `addHandler` в `bot.on("message")` ловит все сообщения. Фильтр: если нет state ИЛИ текст начинается с `/` — выход. Кнопка "Отмена" проверяется отдельно.
+- На шаге `date` inline-календарь редактируется на месте; ручной ввод даты также принимается и убирает клавиатуру календаря.
+- `callbackHandler` проверяет доступ и текущий шаг state, поэтому кнопки из старых сообщений не ломают диалог.
 - В `startHandler` при клике по кнопкам вызываются `handleAddCommand`/`handleBalanceCommand` напрямую (оба с проверкой доступа)
 - `sheets.js` при `test` аргументе делает быструю проверку
 - Логгер минимальный, без ротации
