@@ -73,7 +73,7 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 ## 6. Состояние
 `state.js` — in-memory Map. Структура при `/add`:
 ```js
-{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [], calendarMessageId: <id>, amountMessageId: <id>, amountDraft: '', _ts: <timestamp> }
+{ step: 'date'|'amount'|'category'|'wallet'|'note', data: {...}, categories: [], wallets: [], calendarMessageId: <id>, amountMessageId: <id>, amountDraft: '', amountEditSeq: 0, _ts: <timestamp> }
 ```
 TTL: 15 минут. При истечении `getUserState` удаляет состояние и отправляет пользователю сообщение о истечении сессии с возвратом в главное меню. Очищается через `state.del(chatId)` по завершению/отмене. `updateUserState` обновляет `_ts`.
 
@@ -84,7 +84,7 @@ TTL: 15 минут. При истечении `getUserState` удаляет со
 ## 8. Особенности реализации
 - `addHandler` в `bot.on("message")` ловит все сообщения. Фильтр: если нет state ИЛИ текст начинается с `/` — выход. Кнопка "Отмена" проверяется отдельно.
 - На шаге `date` inline-календарь редактируется на месте; ручной ввод даты также принимается и убирает клавиатуру календаря.
-- На шаге `amount` inline-клавиатура редактируется на месте, черновик хранится в `amountDraft`. Ручной ввод суммы также принимается и убирает клавиатуру. Отрицательные суммы разрешены, ноль — нет.
+- На шаге `amount` inline-клавиатура редактируется на месте, черновик хранится в `amountDraft`. Ручной ввод суммы также принимается и убирает клавиатуру. Отрицательные суммы разрешены, ноль — нет. Каждое обновление суммы использует sequence token `amountEditSeq`, после edit проверяется актуальность.
 - `callbackHandler` проверяет доступ и текущий шаг state, поэтому кнопки из старых сообщений не ломают диалог.
 - `handleCancel` и повторный `/add` убирают обе inline-клавиатуры: календаря и суммы.
 - В `startHandler` при клике по кнопкам вызываются `handleAddCommand`/`handleBalanceCommand` напрямую (оба с проверкой доступа)
