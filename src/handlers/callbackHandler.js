@@ -1,8 +1,13 @@
+import { applyAmountAction, parseAmountCallback } from "../amount.js";
 import { buildCalendarText, parseCalendarCallback } from "../calendar.js";
-import { createCalendarKeyboard } from "../keyboards.js";
+import { createAmountKeyboard, createCalendarKeyboard } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
-import { checkAccess } from "../utils.js";
-import { completeDateStep } from "./addHandler.js";
+import { checkAccess, parseAmount } from "../utils.js";
+import {
+  buildAmountText,
+  completeAmountStep,
+  completeDateStep,
+} from "./addHandler.js";
 import { handleCancel } from "./cancelHandler.js";
 
 function resolveDate(parsed) {
@@ -48,6 +53,31 @@ async function editCalendarMessage(bot, deps, chatId, userState, year, month) {
   deps.state.update(chatId, { calendarMessageId: sent.message_id });
 }
 
+async function editAmountMessage(bot, deps, chatId, userState, draft) {
+  const { logger } = deps;
+  const text = buildAmountText(draft);
+  const replyMarkup = createAmountKeyboard().reply_markup;
+
+  if (userState.amountMessageId) {
+    try {
+      await bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: userState.amountMessageId,
+        reply_markup: replyMarkup,
+      });
+      return;
+    } catch (err) {
+      if (isNotModifiedError(err)) return;
+      logger.warn(`Не удалось обновить сообщение суммы: ${err.message}`);
+    }
+  }
+
+  const sent = await bot.sendMessage(chatId, text, {
+    reply_markup: replyMarkup,
+  });
+  deps.state.update(chatId, { amountMessageId: sent.message_id });
+}
+
 export function registerCallbackHandler(bot, deps) {
   const { logger, config } = deps;
 
@@ -84,6 +114,54 @@ export function registerCallbackHandler(bot, deps) {
       if (data === "v1:cancel") {
         await answer();
         await handleCancel(bot, deps, { chat: { id: chatId } });
+        return;
+      }
+
+      const amountAction = parseAmountCallback(data);
+      if (amountAction) {
+        const amountState = deps.state.get(chatId);
+        if (!amountState || amountState.step !== "amount") {
+          await answer({
+            text: MESSAGES.ADD_TRANSACTION.AMOUNT_STALE,
+            show_alert: true,
+          });
+          return;
+        }
+
+        if (amountAction.type === "confirm") {
+          const amount = parseAmount(amountState.amountDraft || "");
+          if (Number.isNaN(amount) || amount === 0) {
+            await answer({
+              text: MESSAGES.ADD_TRANSACTION.AMOUNT_EMPTY,
+              show_alert: true,
+            });
+            return;
+          }
+
+          await answer();
+          await completeAmountStep(bot, deps, chatId, amountState, amount);
+          return;
+        }
+
+        const currentDraft = amountState.amountDraft || "";
+        const nextDraft = applyAmountAction(currentDraft, amountAction);
+
+        if (nextDraft === currentDraft) {
+          await answer(
+            amountAction.type === "digit" ||
+              amountAction.type === "doubleZero"
+              ? {
+                  text: MESSAGES.ADD_TRANSACTION.AMOUNT_LIMIT,
+                  show_alert: true,
+                }
+              : undefined
+          );
+          return;
+        }
+
+        deps.state.update(chatId, { amountDraft: nextDraft });
+        await answer();
+        await editAmountMessage(bot, deps, chatId, amountState, nextDraft);
         return;
       }
 

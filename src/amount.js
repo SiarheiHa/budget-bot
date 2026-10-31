@@ -120,6 +120,7 @@ export function parseAmountCallback(data) {
 export function formatAmountDraft(draft) {
   const value = toDraft(draft);
   if (value === "") return "0";
+  if (value === "-") return "-";
 
   const parts = splitDraft(value);
   const integer = parts.integer === "" ? "0" : parts.integer;

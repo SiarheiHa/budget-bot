@@ -34,11 +34,30 @@ export function createCancelableKeyboard(items) {
   };
 }
 
-export function createForceReply() {
+export function createAmountKeyboard() {
+  const digit = (value) => ({
+    text: value,
+    callback_data: `v1:amt:d:${value}`,
+  });
+
   return {
     reply_markup: {
-      force_reply: true,
-      selective: true,
+      inline_keyboard: [
+        [digit("1"), digit("2"), digit("3")],
+        [digit("4"), digit("5"), digit("6")],
+        [digit("7"), digit("8"), digit("9")],
+        [
+          { text: "00", callback_data: "v1:amt:00" },
+          digit("0"),
+          { text: ",", callback_data: "v1:amt:sep" },
+        ],
+        [
+          { text: "±", callback_data: "v1:amt:sign" },
+          { text: "⌫", callback_data: "v1:amt:back" },
+          { text: "Сброс", callback_data: "v1:amt:clear" },
+        ],
+        [{ text: "✅ Готово", callback_data: "v1:amt:ok" }],
+      ],
     },
   };
 }

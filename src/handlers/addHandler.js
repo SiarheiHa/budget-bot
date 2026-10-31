@@ -3,23 +3,42 @@ import {
   parseAmount,
   formatDateToDisplay,
   createAccessMiddleware,
+  removeInlineKeyboard,
 } from "../utils.js";
 
+import { formatAmountDraft, formatAmountValue } from "../amount.js";
 import { buildCalendarText } from "../calendar.js";
 import {
+  createAmountKeyboard,
   createCancelableKeyboard,
   createCalendarKeyboard,
   showMainKeyboard,
-  createForceReply,
 } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
 
-export async function startAmountStep(bot, deps, chatId) {
-  await bot.sendMessage(
-    chatId,
-    MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT + "\n\nДля отмены: /cancel",
-    createForceReply()
+export function buildAmountText(draft) {
+  return (
+    MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT +
+    "\n\n" +
+    MESSAGES.ADD_TRANSACTION.AMOUNT_SELECTED +
+    " " +
+    formatAmountDraft(draft)
   );
+}
+
+export async function startAmountStep(bot, deps, chatId) {
+  const userState = deps.state.get(chatId);
+  const draft = userState?.amountDraft || "";
+  const sent = await bot.sendMessage(
+    chatId,
+    buildAmountText(draft),
+    createAmountKeyboard()
+  );
+
+  deps.state.update(chatId, {
+    amountDraft: draft,
+    amountMessageId: sent.message_id,
+  });
 }
 
 export async function showCalendarStep(bot, deps, chatId) {
@@ -68,6 +87,40 @@ export async function completeDateStep(bot, deps, chatId, userState, date) {
   await startAmountStep(bot, deps, chatId);
 }
 
+export async function completeAmountStep(bot, deps, chatId, userState, amount) {
+  const { logger } = deps;
+
+  deps.state.update(chatId, {
+    step: "category",
+    data: {
+      ...userState.data,
+      amount,
+    },
+    amountDraft: "",
+  });
+
+  if (userState.amountMessageId) {
+    try {
+      await bot.editMessageText(
+        `${MESSAGES.ADD_TRANSACTION.AMOUNT_SELECTED} ${formatAmountValue(amount)}`,
+        {
+          chat_id: chatId,
+          message_id: userState.amountMessageId,
+          reply_markup: { inline_keyboard: [] },
+        }
+      );
+    } catch (err) {
+      logger.warn(`Не удалось обновить сообщение суммы: ${err.message}`);
+    }
+  }
+
+  await bot.sendMessage(
+    chatId,
+    MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
+    createCancelableKeyboard(userState.categories)
+  );
+}
+
 // Добавляем экспорт функции для обработки команды /add
 export async function handleAddCommand(bot, deps, msg) {
   const { sheets, state, logger } = deps;
@@ -83,20 +136,19 @@ export async function handleAddCommand(bot, deps, msg) {
     ]);
 
     const existingState = state.get(chatId);
-    if (existingState && existingState.calendarMessageId) {
-      try {
-        await bot.editMessageReplyMarkup(
-          { inline_keyboard: [] },
-          {
-            chat_id: chatId,
-            message_id: existingState.calendarMessageId,
-          }
-        );
-      } catch (err) {
-        logger.warn(
-          `Не удалось убрать старую клавиатуру календаря: ${err.message}`
-        );
-      }
+    if (existingState) {
+      await removeInlineKeyboard(
+        bot,
+        logger,
+        chatId,
+        existingState.calendarMessageId
+      );
+      await removeInlineKeyboard(
+        bot,
+        logger,
+        chatId,
+        existingState.amountMessageId
+      );
     }
 
     // Сохраняем в состоянии для последующего использования
@@ -163,28 +215,15 @@ export function registerAddHandler(bot, deps) {
         await completeDateStep(bot, deps, chatId, userState, date);
       } else if (userState.step === "amount") {
         const amount = parseAmount(text);
-        if (amount === null || Number.isNaN(amount)) {
+        if (Number.isNaN(amount) || amount === 0) {
           await bot.sendMessage(
             chatId,
-            MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID,
-            createCancelableKeyboard([])
+            MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID
           );
           return;
         }
-        state.update(chatId, {
-          step: "category",
-          data: {
-            ...userState.data,
-            amount: amount,
-          },
-        });
 
-        // Создаем клавиатуру с категориями из таблицы и кнопкой отмены
-        await bot.sendMessage(
-          chatId,
-          MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
-          createCancelableKeyboard(userState.categories)
-        );
+        await completeAmountStep(bot, deps, chatId, userState, amount);
       } else if (userState.step === "category") {
         // Проверяем, что выбрана существующая категория
         if (!userState.categories.includes(text)) {

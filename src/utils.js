@@ -173,3 +173,19 @@ export function createAccessMiddleware(bot, deps) {
     };
   };
 }
+
+export async function removeInlineKeyboard(bot, logger, chatId, messageId) {
+  if (!messageId) return;
+
+  try {
+    await bot.editMessageReplyMarkup(
+      { inline_keyboard: [] },
+      {
+        chat_id: chatId,
+        message_id: messageId,
+      }
+    );
+  } catch (err) {
+    logger?.warn?.(`Не удалось убрать inline-клавиатуру: ${err.message}`);
+  }
+}

@@ -96,7 +96,7 @@ test("amount: parseAmountCallback", () => {
 
 test("amount: форматирование черновика", () => {
   assert.equal(formatAmountDraft(""), "0");
-  assert.equal(formatAmountDraft("-"), "-0");
+  assert.equal(formatAmountDraft("-"), "-");
   assert.equal(formatAmountDraft("0,"), "0,");
   assert.equal(formatAmountDraft("1000"), "1 000");
   assert.equal(formatAmountDraft("-1250,50"), "-1 250,50");
