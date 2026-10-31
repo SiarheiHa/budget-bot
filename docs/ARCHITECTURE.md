@@ -46,7 +46,7 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 Меню с кнопками "Добавить транзакцию", "Показать баланс"
 
 ### /add (многошаговый)
-1. date — inline-календарь на текущий месяц: навигация `«`/`»`, `Сегодня`, `Вчера`, `❌ Отмена`. Ручной ввод (`parseDateDDMMYYYY`) остаётся fallback
+1. date — inline-календарь на текущий месяц: навигация `«`/`»`, строка подписей `Пн–Вс` (noop-кнопки, выровнены с сеткой), `Сегодня`, `Вчера`, `❌ Отмена`. Ручной ввод (`parseDateDDMMYYYY`) остаётся fallback
 2. amount — `parseAmount` (запятая/точка, пробелы), `force_reply`
 3. category — выбор из загруженных из таблицы
 4. wallet — выбор из загруженных из таблицы
@@ -58,6 +58,7 @@ Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.
 - `cal:nav:YYYY-MM` — перерисовать календарь через `editMessageText`
 - `cal:day:YYYY-MM-DD` — выбрать дату и перейти к сумме
 - `cal:today`, `cal:yesterday` — быстрый выбор даты
+- `cal:noop` — заглушка для подписей дней недели и пустых ячеек
 - `v1:cancel` — отмена через общий `handleCancel`
 Проверяется доступ (`checkAccess`), на каждый callback отвечает `answerCallbackQuery`. Устаревшие кнопки и неверный шаг дают alert «сессия устарела».
 
