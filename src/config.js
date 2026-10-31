@@ -24,6 +24,25 @@ for (const key of required) {
   }
 }
 
+// Список разрешённых пользователей (обязателен)
+// Без явного списка доступ блокируется для всех
+const allowedUsers = (process.env.ALLOWED_USERS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+if (allowedUsers.length === 0) {
+  const errorMessage =
+    "❌ Ошибка: переменная окружения ALLOWED_USERS не задана или пуста. Укажите через запятую список разрешённых Telegram ID (например: 123456789,987654321)";
+  console.error(errorMessage);
+
+  if (process.env.NODE_ENV === "production") {
+    process.exit(1);
+  }
+
+  throw new Error(errorMessage);
+}
+
 // Экспортируем объект config, чтобы в других файлах проекта можно было
 // легко получить доступ к настройкам (без прямого обращения к process.env).
 export const config = {
@@ -33,12 +52,8 @@ export const config = {
   // ID таблицы Google Sheets
   spreadsheetId: process.env.SPREADSHEET_ID,
 
-  // Список разрешённых пользователей (если нужно ограничить доступ к боту).
-  // Например: ALLOWED_USERS=123456789,987654321
-  allowedUsers: (process.env.ALLOWED_USERS || "")
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean),
+  // Список разрешённых пользователей
+  allowedUsers,
 
   // Учётные данные Google (JSON ключ) могут храниться в переменной окружения
   // в Base64 виде (удобно для деплоя, например, на Railway).

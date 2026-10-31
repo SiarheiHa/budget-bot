@@ -1,6 +1,6 @@
 export const mainKeyboard = {
   reply_markup: {
-    keyboard: [["Добавить транзакцию (/add)"], ["Показать баланс (/balance)"]],
+    keyboard: [["Добавить транзакцию"], ["Показать баланс"]],
     resize_keyboard: true,
     one_time_keyboard: false,
   },
@@ -21,7 +21,16 @@ export function createCancelableKeyboard(items) {
     reply_markup: {
       keyboard: [...items.map((item) => [item]), ["❌ Отмена"]],
       resize_keyboard: true,
-      one_time_keyboard: true,
+      one_time_keyboard: items.length === 0 ? false : true,
+    },
+  };
+}
+
+export function createForceReply() {
+  return {
+    reply_markup: {
+      force_reply: true,
+      selective: true,
     },
   };
 }

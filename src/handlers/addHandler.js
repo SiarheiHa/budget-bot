@@ -5,7 +5,7 @@ import {
   createAccessMiddleware,
 } from "../utils.js";
 
-import { createCancelableKeyboard, showMainKeyboard } from "../keyboards.js";
+import { createCancelableKeyboard, showMainKeyboard, createForceReply } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
 
 // Добавляем экспорт функции для обработки команды /add
@@ -56,7 +56,14 @@ export function registerAddHandler(bot, deps) {
   // Обработчик сообщений для диалога добавления транзакции
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
-    const userState = state.get(chatId);
+    const { MESSAGES } = await import("../messages.js");
+    const { showMainKeyboard } = await import("../keyboards.js");
+    const userState = state.get(chatId, {
+      bot,
+      chatId,
+      messages: { COMMON: MESSAGES.COMMON },
+      keyboards: { showMainKeyboard },
+    });
 
     // Если пользователь не в процессе добавления или это команда - выходим
     if (!userState || (msg.text && msg.text.startsWith("/"))) return;
@@ -78,23 +85,21 @@ export function registerAddHandler(bot, deps) {
           );
           return;
         }
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "amount",
           data: {
             ...userState.data,
             date: formatDateToDisplay(date),
           },
-        };
-        state.set(chatId, newState);
+        });
         await bot.sendMessage(
           chatId,
-          MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT,
-          createCancelableKeyboard([])
+          MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT + "\n\nДля отмены: /cancel",
+          createForceReply()
         );
       } else if (userState.step === "amount") {
         const amount = parseAmount(text);
-        if (amount === null) {
+        if (amount === null || Number.isNaN(amount)) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID,
@@ -102,21 +107,19 @@ export function registerAddHandler(bot, deps) {
           );
           return;
         }
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "category",
           data: {
             ...userState.data,
             amount: amount,
           },
-        };
-        state.set(chatId, newState);
+        });
 
         // Создаем клавиатуру с категориями из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
-          createCancelableKeyboard(newState.categories)
+          createCancelableKeyboard(userState.categories)
         );
       } else if (userState.step === "category") {
         // Проверяем, что выбрана существующая категория
@@ -124,26 +127,24 @@ export function registerAddHandler(bot, deps) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.CATEGORY_INVALID,
-            createCancelableKeyboard(newState.categories)
+            createCancelableKeyboard(userState.categories)
           );
           return;
         }
 
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "wallet",
           data: {
             ...userState.data,
             category: text,
           },
-        };
-        state.set(chatId, newState);
+        });
 
         // Создаем клавиатуру с кошельками из таблицы и кнопкой отмены
         await bot.sendMessage(
           chatId,
           MESSAGES.ADD_TRANSACTION.WALLET_PROMPT,
-          createCancelableKeyboard(newState.wallets)
+          createCancelableKeyboard(userState.wallets)
         );
       } else if (userState.step === "wallet") {
         // Проверяем, что выбран существующий кошелек
@@ -151,20 +152,18 @@ export function registerAddHandler(bot, deps) {
           await bot.sendMessage(
             chatId,
             MESSAGES.ADD_TRANSACTION.WALLET_INVALID,
-            createCancelableKeyboard(newState.wallets)
+            createCancelableKeyboard(userState.wallets)
           );
           return;
         }
 
-        const newState = {
-          ...userState,
+        state.update(chatId, {
           step: "note",
           data: {
             ...userState.data,
             wallet: text,
           },
-        };
-        state.set(chatId, newState);
+        });
 
         // Убираем клавиатуру
         await bot.sendMessage(
