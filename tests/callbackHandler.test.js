@@ -204,7 +204,6 @@ test("callback: ввод суммы кнопками и переключение
   await send("v1:amt:sign");
 
   assert.equal(deps.store.get("1").amountDraft, "-500,5");
-  assert.equal(deps.store.get("1").amountEditSeq, 6);
   assert.equal(bot.answers.length, 6);
   assert.ok(bot.edits.every((edit) => edit.type === "text"));
   assert.match(bot.edits.at(-1).text, /-500,5/);

@@ -53,14 +53,7 @@ async function editCalendarMessage(bot, deps, chatId, userState, year, month) {
   deps.state.update(chatId, { calendarMessageId: sent.message_id });
 }
 
-async function editAmountMessage(
-  bot,
-  deps,
-  chatId,
-  userState,
-  draft,
-  editSeq
-) {
+async function editAmountMessage(bot, deps, chatId, userState, draft) {
   const { logger } = deps;
   const text = buildAmountText(draft);
   const replyMarkup = createAmountKeyboard().reply_markup;
@@ -72,17 +65,8 @@ async function editAmountMessage(
         message_id: userState.amountMessageId,
         reply_markup: replyMarkup,
       });
-
-      if (deps.state.get(chatId)?.amountEditSeq !== editSeq) {
-        return;
-      }
-
       return;
     } catch (err) {
-      if (deps.state.get(chatId)?.amountEditSeq !== editSeq) {
-        return;
-      }
-
       if (isNotModifiedError(err)) return;
       logger.warn(`Не удалось обновить сообщение суммы: ${err.message}`);
     }
@@ -174,18 +158,9 @@ export function registerCallbackHandler(bot, deps) {
           return;
         }
 
-        const editSeq = (amountState.amountEditSeq || 0) + 1;
-        deps.state.update(chatId, { amountEditSeq: editSeq });
         deps.state.update(chatId, { amountDraft: nextDraft });
         await answer();
-        await editAmountMessage(
-          bot,
-          deps,
-          chatId,
-          amountState,
-          nextDraft,
-          editSeq
-        );
+        await editAmountMessage(bot, deps, chatId, amountState, nextDraft);
         return;
       }
 
