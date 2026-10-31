@@ -1,3 +1,11 @@
 node_modules/
 .env
 credentials.json
+OPENCODE.md
+
+# runtime
+bot.log
+bot.pid
+
+# windows artifacts
+*.Zone.Identifier
