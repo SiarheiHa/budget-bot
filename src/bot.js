@@ -6,6 +6,7 @@ import { registerStartHandler } from "./handlers/startHandler.js";
 import { registerBalanceHandler } from "./handlers/balanceHandler.js";
 import { registerAddHandler } from "./handlers/addHandler.js";
 import { registerCancelHandler } from "./handlers/cancelHandler.js";
+import { registerCallbackHandler } from "./handlers/callbackHandler.js";
 import {
   setUserState,
   getUserState,
@@ -33,6 +34,7 @@ function registerHandlers() {
   registerStartHandler(bot, deps);
   registerBalanceHandler(bot, deps);
   registerCancelHandler(bot, deps);
+  registerCallbackHandler(bot, deps);
   registerAddHandler(bot, deps);
 }
 

@@ -5,8 +5,68 @@ import {
   createAccessMiddleware,
 } from "../utils.js";
 
-import { createCancelableKeyboard, showMainKeyboard, createForceReply } from "../keyboards.js";
+import { buildCalendarText } from "../calendar.js";
+import {
+  createCancelableKeyboard,
+  createCalendarKeyboard,
+  showMainKeyboard,
+  createForceReply,
+} from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
+
+export async function startAmountStep(bot, deps, chatId) {
+  await bot.sendMessage(
+    chatId,
+    MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT + "\n\nДля отмены: /cancel",
+    createForceReply()
+  );
+}
+
+export async function showCalendarStep(bot, deps, chatId) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  const sent = await bot.sendMessage(
+    chatId,
+    MESSAGES.ADD_TRANSACTION.DATE_PROMPT +
+      "\n\n" +
+      buildCalendarText(year, month),
+    createCalendarKeyboard(year, month)
+  );
+
+  deps.state.update(chatId, { calendarMessageId: sent.message_id });
+}
+
+export async function completeDateStep(bot, deps, chatId, userState, date) {
+  const { logger } = deps;
+  const display = formatDateToDisplay(date);
+
+  deps.state.update(chatId, {
+    step: "amount",
+    data: {
+      ...userState.data,
+      date: display,
+    },
+  });
+
+  if (userState.calendarMessageId) {
+    try {
+      await bot.editMessageText(
+        `${MESSAGES.ADD_TRANSACTION.DATE_SELECTED} ${display}`,
+        {
+          chat_id: chatId,
+          message_id: userState.calendarMessageId,
+          reply_markup: { inline_keyboard: [] },
+        }
+      );
+    } catch (err) {
+      logger.warn(`Не удалось обновить сообщение календаря: ${err.message}`);
+    }
+  }
+
+  await startAmountStep(bot, deps, chatId);
+}
 
 // Добавляем экспорт функции для обработки команды /add
 export async function handleAddCommand(bot, deps, msg) {
@@ -22,6 +82,23 @@ export async function handleAddCommand(bot, deps, msg) {
       sheets.getWallets(),
     ]);
 
+    const existingState = state.get(chatId);
+    if (existingState && existingState.calendarMessageId) {
+      try {
+        await bot.editMessageReplyMarkup(
+          { inline_keyboard: [] },
+          {
+            chat_id: chatId,
+            message_id: existingState.calendarMessageId,
+          }
+        );
+      } catch (err) {
+        logger.warn(
+          `Не удалось убрать старую клавиатуру календаря: ${err.message}`
+        );
+      }
+    }
+
     // Сохраняем в состоянии для последующего использования
     state.set(chatId, {
       step: "date",
@@ -30,11 +107,7 @@ export async function handleAddCommand(bot, deps, msg) {
       wallets,
     });
 
-    await bot.sendMessage(
-      chatId,
-      MESSAGES.ADD_TRANSACTION.START,
-      createCancelableKeyboard([])
-    );
+    await showCalendarStep(bot, deps, chatId);
   } catch (err) {
     logger.error("Ошибка при получении категорий/кошельков", err);
     await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.INIT_ERROR);
@@ -74,29 +147,20 @@ export function registerAddHandler(bot, deps) {
     // Проверка на отмену
     if (text === "❌ Отмена") return;
 
+    // Кнопки главного меню обрабатываются своими хендлерами
+    if (text === "Добавить транзакцию" || text === "Показать баланс") return;
+
     try {
       if (userState.step === "date") {
         const date = parseDateDDMMYYYY(text);
         if (!date) {
           await bot.sendMessage(
             chatId,
-            MESSAGES.ADD_TRANSACTION.DATE_INVALID,
-            createCancelableKeyboard([])
+            MESSAGES.ADD_TRANSACTION.DATE_INVALID
           );
           return;
         }
-        state.update(chatId, {
-          step: "amount",
-          data: {
-            ...userState.data,
-            date: formatDateToDisplay(date),
-          },
-        });
-        await bot.sendMessage(
-          chatId,
-          MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT + "\n\nДля отмены: /cancel",
-          createForceReply()
-        );
+        await completeDateStep(bot, deps, chatId, userState, date);
       } else if (userState.step === "amount") {
         const amount = parseAmount(text);
         if (amount === null || Number.isNaN(amount)) {

@@ -1,3 +1,10 @@
+import {
+  buildMonthGrid,
+  formatIsoDate,
+  formatIsoMonth,
+  shiftMonth,
+} from "./calendar.js";
+
 export const mainKeyboard = {
   reply_markup: {
     keyboard: [["Добавить транзакцию"], ["Показать баланс"]],
@@ -31,6 +38,51 @@ export function createForceReply() {
     reply_markup: {
       force_reply: true,
       selective: true,
+    },
+  };
+}
+
+export function createCalendarKeyboard(year, month) {
+  const previous = shiftMonth(year, month, -1);
+  const next = shiftMonth(year, month, 1);
+
+  const navigationRow = [
+    {
+      text: "«",
+      callback_data: `cal:nav:${formatIsoMonth(previous.year, previous.month)}`,
+    },
+    {
+      text: "»",
+      callback_data: `cal:nav:${formatIsoMonth(next.year, next.month)}`,
+    },
+  ];
+
+  const weekRows = buildMonthGrid(year, month).map((week) =>
+    week.map((cell) =>
+      cell
+        ? {
+            text: String(cell.day),
+            callback_data: `cal:day:${formatIsoDate(
+              cell.year,
+              cell.month,
+              cell.day
+            )}`,
+          }
+        : { text: " ", callback_data: "cal:noop" }
+    )
+  );
+
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        navigationRow,
+        ...weekRows,
+        [
+          { text: "Сегодня", callback_data: "cal:today" },
+          { text: "Вчера", callback_data: "cal:yesterday" },
+        ],
+        [{ text: "❌ Отмена", callback_data: "v1:cancel" }],
+      ],
     },
   };
 }

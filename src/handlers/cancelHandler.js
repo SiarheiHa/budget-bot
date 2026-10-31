@@ -1,15 +1,32 @@
 import { showMainKeyboard } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
 
-async function handleCancel(bot, deps, msg) {
+export async function handleCancel(bot, deps, msg) {
   const { state, logger } = deps;
   const chatId = msg.chat.id;
 
-  if (!state.get(chatId)) return;
+  const currentState = state.get(chatId);
+  if (!currentState) return;
 
   try {
     logger.info(`Отмена операции от пользователя ${chatId}`);
     state.del(chatId);
+
+    if (currentState.calendarMessageId) {
+      try {
+        await bot.editMessageReplyMarkup(
+          { inline_keyboard: [] },
+          {
+            chat_id: chatId,
+            message_id: currentState.calendarMessageId,
+          }
+        );
+      } catch (error) {
+        logger.warn(
+          `Не удалось убрать клавиатуру календаря: ${error.message}`
+        );
+      }
+    }
 
     await bot.sendMessage(chatId, MESSAGES.COMMON.CANCELLED);
     await showMainKeyboard(bot, chatId);
