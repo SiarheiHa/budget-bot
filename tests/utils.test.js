@@ -38,6 +38,11 @@ test('parseAmount: spaces', () => {
   assert.equal(parseAmount('1 000,50'), 1000.5);
 });
 
+test('parseAmount: negative values', () => {
+  assert.equal(parseAmount('-500'), -500);
+  assert.equal(parseAmount('−500,50'), -500.5);
+});
+
 test('parseAmount: invalid returns NaN', () => {
   assert.equal(Number.isNaN(parseAmount('abc')), true);
 });

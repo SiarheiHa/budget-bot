@@ -116,7 +116,11 @@ export function formatDateToDisplay(date) {
 export function parseAmount(text) {
   if (text === null || text === undefined) return NaN;
   if (typeof text === "number") return text;
-  const cleaned = String(text).trim().replace(/\s+/g, "").replace(",", ".");
+  const cleaned = String(text)
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/−/g, "-")
+    .replace(",", ".");
   const num = parseFloat(cleaned);
   return Number.isFinite(num) ? num : NaN;
 }
