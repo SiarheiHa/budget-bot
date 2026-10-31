@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  WEEKDAYS,
   daysInMonth,
   shiftMonth,
   formatIsoDate,
@@ -66,10 +67,10 @@ test("buildMonthGrid: февраль високосного года", () => {
   assert.equal(days[28].day, 29);
 });
 
-test("buildCalendarText: месяц и дни недели", () => {
+test("buildCalendarText: только месяц и год", () => {
   const text = buildCalendarText(2026, 10);
-  assert.match(text, /Октябрь 2026/);
-  assert.match(text, /Пн Вт Ср Чт Пт Сб Вс/);
+  assert.equal(text, "Октябрь 2026");
+  assert.doesNotMatch(text, /Пн/);
 });
 
 test("parseCalendarCallback: навигация, дни и быстрые кнопки", () => {
@@ -100,6 +101,16 @@ test("createCalendarKeyboard: навигация, дни и кнопки", () =>
 
   assert.equal(rows[0][0].callback_data, "cal:nav:2026-09");
   assert.equal(rows[0][1].callback_data, "cal:nav:2026-11");
+
+  const weekdayRow = rows[1];
+  assert.deepEqual(
+    weekdayRow.map((button) => button.text),
+    WEEKDAYS
+  );
+  assert.ok(weekdayRow.every((button) => button.callback_data === "cal:noop"));
+
+  assert.equal(weekdayRow[3].text, "Чт");
+  assert.equal(rows[2][3].callback_data, "cal:day:2026-10-01");
 
   const dayButtons = buttons.filter((button) =>
     button.callback_data.startsWith("cal:day:")

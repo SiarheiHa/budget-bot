@@ -1,4 +1,5 @@
 import {
+  WEEKDAYS,
   buildMonthGrid,
   formatIsoDate,
   formatIsoMonth,
@@ -57,6 +58,11 @@ export function createCalendarKeyboard(year, month) {
     },
   ];
 
+  const weekdayRow = WEEKDAYS.map((label) => ({
+    text: label,
+    callback_data: "cal:noop",
+  }));
+
   const weekRows = buildMonthGrid(year, month).map((week) =>
     week.map((cell) =>
       cell
@@ -76,6 +82,7 @@ export function createCalendarKeyboard(year, month) {
     reply_markup: {
       inline_keyboard: [
         navigationRow,
+        weekdayRow,
         ...weekRows,
         [
           { text: "Сегодня", callback_data: "cal:today" },

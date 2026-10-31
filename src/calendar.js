@@ -74,7 +74,7 @@ export function buildMonthGrid(year, month) {
 }
 
 export function buildCalendarText(year, month) {
-  return `${MONTH_NAMES[month - 1]} ${year}\n${WEEKDAYS.join(" ")}`;
+  return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
 export function parseCalendarCallback(data) {
