@@ -53,22 +53,28 @@ async function editCalendarMessage(bot, deps, chatId, userState, year, month) {
   deps.state.update(chatId, { calendarMessageId: sent.message_id });
 }
 
-async function editAmountMessage(bot, deps, chatId, userState, draft) {
-  const { logger } = deps;
-  const text = buildAmountText(draft);
+function isMessageNotFoundError(err) {
+  const description = err?.response?.body?.description || err?.message || "";
+  return description.includes("message to edit not found");
+}
+
+async function renderAmountMessage(bot, deps, chatId) {
+  const state = deps.state.get(chatId);
+  if (!state || state.step !== "amount") return;
+
+  const text = buildAmountText(state.amountDraft || "");
   const replyMarkup = createAmountKeyboard().reply_markup;
 
-  if (userState.amountMessageId) {
+  if (state.amountMessageId) {
     try {
       await bot.editMessageText(text, {
         chat_id: chatId,
-        message_id: userState.amountMessageId,
+        message_id: state.amountMessageId,
         reply_markup: replyMarkup,
       });
       return;
     } catch (err) {
-      if (isNotModifiedError(err)) return;
-      logger.warn(`Не удалось обновить сообщение суммы: ${err.message}`);
+      if (!isMessageNotFoundError(err)) throw err;
     }
   }
 
@@ -112,8 +118,9 @@ export function registerCallbackHandler(bot, deps) {
       }
 
       if (data === "v1:cancel") {
+        const cancellation = handleCancel(bot, deps, { chat: { id: chatId } });
         await answer();
-        await handleCancel(bot, deps, { chat: { id: chatId } });
+        await cancellation;
         return;
       }
 
@@ -138,8 +145,15 @@ export function registerCallbackHandler(bot, deps) {
             return;
           }
 
+          const completion = completeAmountStep(
+            bot,
+            deps,
+            chatId,
+            amountState,
+            amount
+          );
           await answer();
-          await completeAmountStep(bot, deps, chatId, amountState, amount);
+          await completion;
           return;
         }
 
@@ -160,7 +174,16 @@ export function registerCallbackHandler(bot, deps) {
 
         deps.state.update(chatId, { amountDraft: nextDraft });
         await answer();
-        await editAmountMessage(bot, deps, chatId, amountState, nextDraft);
+        deps.amountUi.schedule(
+          chatId,
+          () => renderAmountMessage(bot, deps, chatId),
+          {
+            onError: (err) =>
+              logger.warn(
+                `Не удалось обновить сообщение суммы: ${err.message}`
+              ),
+          }
+        );
         return;
       }
 

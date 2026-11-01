@@ -99,13 +99,20 @@ export async function completeAmountStep(bot, deps, chatId, userState, amount) {
     amountDraft: "",
   });
 
-  if (userState.amountMessageId) {
+  if (deps.amountUi) {
+    await deps.amountUi.abort(chatId);
+  }
+
+  const amountMessageId =
+    deps.state.get(chatId)?.amountMessageId || userState.amountMessageId;
+
+  if (amountMessageId) {
     try {
       await bot.editMessageText(
         `${MESSAGES.ADD_TRANSACTION.AMOUNT_SELECTED} ${formatAmountValue(amount)}`,
         {
           chat_id: chatId,
-          message_id: userState.amountMessageId,
+          message_id: amountMessageId,
           reply_markup: { inline_keyboard: [] },
         }
       );
@@ -136,6 +143,9 @@ export async function handleAddCommand(bot, deps, msg) {
     ]);
 
     const existingState = state.get(chatId);
+    if (deps.amountUi) {
+      await deps.amountUi.abort(chatId);
+    }
     if (existingState) {
       await removeInlineKeyboard(
         bot,
@@ -299,6 +309,9 @@ export function registerAddHandler(bot, deps) {
       await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.ERROR);
 
       // Чистим state и возвращаем основную клавиатуру даже при ошибке
+      if (deps.amountUi) {
+        await deps.amountUi.abort(chatId);
+      }
       state.del(chatId);
       await showMainKeyboard(bot, chatId, MESSAGES.COMMON.WHAT_NEXT);
     }

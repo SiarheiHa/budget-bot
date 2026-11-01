@@ -7,6 +7,7 @@ import { registerBalanceHandler } from "./handlers/balanceHandler.js";
 import { registerAddHandler } from "./handlers/addHandler.js";
 import { registerCancelHandler } from "./handlers/cancelHandler.js";
 import { registerCallbackHandler } from "./handlers/callbackHandler.js";
+import { createAmountUiQueue } from "./amountUi.js";
 import {
   setUserState,
   getUserState,
@@ -26,8 +27,10 @@ const state = {
   update: updateUserState,
 };
 
+const amountUi = createAmountUiQueue();
+
 // Объект с зависимостями для обработчиков
-const deps = { sheets, state, config, logger };
+const deps = { sheets, state, config, logger, amountUi };
 
 // Регистрируем все обработчики
 function registerHandlers() {

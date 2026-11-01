@@ -3,7 +3,7 @@ import { MESSAGES } from "../messages.js";
 import { removeInlineKeyboard } from "../utils.js";
 
 export async function handleCancel(bot, deps, msg) {
-  const { state, logger } = deps;
+  const { state, logger, amountUi } = deps;
   const chatId = msg.chat.id;
 
   const currentState = state.get(chatId);
@@ -12,6 +12,9 @@ export async function handleCancel(bot, deps, msg) {
   try {
     logger.info(`Отмена операции от пользователя ${chatId}`);
     state.del(chatId);
+    if (amountUi) {
+      await amountUi.abort(chatId);
+    }
 
     await removeInlineKeyboard(
       bot,

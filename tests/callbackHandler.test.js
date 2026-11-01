@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { registerCallbackHandler } from "../src/handlers/callbackHandler.js";
+import { createAmountUiQueue } from "../src/amountUi.js";
 
 function createBot() {
   const bot = new EventEmitter();
@@ -35,6 +36,7 @@ function createDeps(initialState = {}) {
     config: { allowedUsers: ["1"] },
     logger: { info() {}, warn() {}, error() {} },
     sheets: {},
+    amountUi: createAmountUiQueue({ minIntervalMs: 0 }),
     state: {
       get: (id) => store.get(String(id)) || null,
       set: (id, value) => store.set(String(id), value),
@@ -202,6 +204,7 @@ test("callback: ввод суммы кнопками и переключение
   await send("v1:amt:sep");
   await send("v1:amt:d:5");
   await send("v1:amt:sign");
+  await deps.amountUi.whenIdle("1");
 
   assert.equal(deps.store.get("1").amountDraft, "-500,5");
   assert.equal(bot.answers.length, 6);
@@ -315,4 +318,139 @@ test("callback: лимит дробной части", async () => {
   assert.match(bot.answers[0].options.text, /лимит/);
   assert.equal(deps.store.get("1").amountDraft, "1,23");
   assert.equal(bot.edits.length, 0);
+});
+
+test("callback: одновременные нажатия не теряют цифры", async () => {
+  const bot = createBot();
+  let releaseAnswers;
+  const answersGate = new Promise((resolve) => {
+    releaseAnswers = resolve;
+  });
+  bot.answerCallbackQuery = async (id, options) => {
+    bot.answers.push({ id, options });
+    await answersGate;
+  };
+
+  const deps = createDeps({
+    1: {
+      step: "amount",
+      data: { date: "31.10.2026" },
+      amountDraft: "",
+      amountMessageId: 10,
+    },
+  });
+  registerCallbackHandler(bot, deps);
+
+  const send = (id, data) =>
+    emitCallback(bot, {
+      id,
+      data,
+      message: { chat: { id: 1 } },
+      from: { id: 1 },
+    });
+
+  const first = send("q1", "v1:amt:d:1");
+  const second = send("q2", "v1:amt:d:2");
+
+  releaseAnswers();
+  await Promise.all([first, second]);
+  await deps.amountUi.whenIdle("1");
+
+  assert.equal(deps.store.get("1").amountDraft, "12");
+  assert.match(bot.edits.at(-1).text, /12/);
+});
+
+test("callback: Готово во время in-flight не возвращает клавиатуру", async () => {
+  const bot = createBot();
+  const originalEdit = bot.editMessageText;
+  let releaseEdit;
+  const editGate = new Promise((resolve) => {
+    releaseEdit = resolve;
+  });
+  let firstEdit = true;
+  bot.editMessageText = async (text, form) => {
+    if (firstEdit) {
+      firstEdit = false;
+      await editGate;
+    }
+    return originalEdit(text, form);
+  };
+
+  const deps = createDeps({
+    1: {
+      step: "amount",
+      data: { date: "31.10.2026" },
+      amountDraft: "",
+      amountMessageId: 10,
+      categories: ["Еда"],
+      wallets: ["Наличные"],
+    },
+  });
+  registerCallbackHandler(bot, deps);
+
+  const send = (id, data) =>
+    emitCallback(bot, {
+      id,
+      data,
+      message: { chat: { id: 1 } },
+      from: { id: 1 },
+    });
+
+  await send("q1", "v1:amt:d:1");
+  const confirm = send("q2", "v1:amt:ok");
+
+  releaseEdit();
+  await confirm;
+  await deps.amountUi.whenIdle("1");
+
+  const last = bot.edits.at(-1);
+  assert.match(last.text, /Сумма: 1/);
+  assert.deepEqual(last.form.reply_markup.inline_keyboard, []);
+});
+
+test("callback: Отмена во время in-flight не возвращает клавиатуру", async () => {
+  const bot = createBot();
+  const originalEdit = bot.editMessageText;
+  let releaseEdit;
+  const editGate = new Promise((resolve) => {
+    releaseEdit = resolve;
+  });
+  let firstEdit = true;
+  bot.editMessageText = async (text, form) => {
+    if (firstEdit) {
+      firstEdit = false;
+      await editGate;
+    }
+    return originalEdit(text, form);
+  };
+
+  const deps = createDeps({
+    1: {
+      step: "amount",
+      data: { date: "31.10.2026" },
+      amountDraft: "",
+      amountMessageId: 10,
+      calendarMessageId: 11,
+    },
+  });
+  registerCallbackHandler(bot, deps);
+
+  const send = (id, data) =>
+    emitCallback(bot, {
+      id,
+      data,
+      message: { chat: { id: 1 } },
+      from: { id: 1 },
+    });
+
+  await send("q1", "v1:amt:d:1");
+  const cancel = send("q2", "v1:cancel");
+
+  releaseEdit();
+  await cancel;
+  await deps.amountUi.whenIdle("1");
+
+  const types = bot.edits.map((edit) => edit.type);
+  assert.ok(types.lastIndexOf("markup") > types.lastIndexOf("text"));
+  assert.equal(deps.store.has("1"), false);
 });
