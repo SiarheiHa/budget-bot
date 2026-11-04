@@ -66,10 +66,7 @@ export function createAmountUiQueue(options = {}) {
 
         if (task.generation !== generation) {
           resolveIdle(task);
-          return;
-        }
-
-        if (task.hasPending) {
+        } else if (task.hasPending) {
           if (retryDelayMs > 0) {
             if (!task.timer) {
               task.timer = setTimer(() => {

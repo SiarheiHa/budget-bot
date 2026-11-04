@@ -29,7 +29,6 @@ export function parseDateDDMMYYYY(text) {
   const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
-  const currentDay = now.getDate();
 
   // Заменяем все возможные разделители на точку для единообразной обработки
   const normalizedText = text

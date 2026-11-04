@@ -50,7 +50,7 @@ export function getUserState(userId, opts = {}) {
             }
           })
           .catch(() => {});
-      } catch (e) {
+      } catch {
         // Игнорируем ошибки отправки уведомления
       }
     }
