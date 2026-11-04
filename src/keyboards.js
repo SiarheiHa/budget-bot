@@ -71,6 +71,20 @@ export function createAmountKeyboard() {
   };
 }
 
+export function createAiConfirmKeyboard() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "✅ Сохранить", callback_data: "ai:confirm" }],
+        [
+          { text: "✏️ Изменить", callback_data: "ai:edit" },
+          { text: "❌ Отмена", callback_data: "ai:cancel" },
+        ],
+      ],
+    },
+  };
+}
+
 export function createCalendarKeyboard(year, month) {
   const previous = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);

@@ -7,6 +7,7 @@ export function createBot() {
   bot.edits = [];
   bot.sent = [];
   bot.textHandlers = [];
+  bot.chatActions = [];
 
   bot.answerCallbackQuery = async (id, options) => {
     bot.answers.push({ id, options });
@@ -26,6 +27,9 @@ export function createBot() {
     bot.sent.push({ chatId, text, options, message });
     return message;
   };
+  bot.sendChatAction = async (chatId, action) => {
+    bot.chatActions.push({ chatId, action });
+  };
   bot.onText = (regexp, handler) => {
     bot.textHandlers.push({ regexp, handler });
     return bot;
@@ -36,12 +40,19 @@ export function createBot() {
 
 export function createDeps(initialState = {}, overrides = {}) {
   const store = new Map(
-    Object.entries(initialState).map(([id, value]) => [String(id), value])
+    Object.entries(initialState).map(([id, value]) => [
+      String(id),
+      { ...value, _ts: Date.now() },
+    ])
   );
   const transactions = [];
 
   return {
-    config: { allowedUsers: ["1"], ...(overrides.config || {}) },
+    config: {
+      allowedUsers: ["1"],
+      aiParsingEnabled: false,
+      ...(overrides.config || {}),
+    },
     logger: overrides.logger || {
       info() {},
       warn() {},
@@ -59,13 +70,23 @@ export function createDeps(initialState = {}, overrides = {}) {
       },
       ...(overrides.sheets || {}),
     },
+    ai: overrides.ai || {
+      parse: async () => ({ ok: false, reason: "not_transaction" }),
+    },
+    aiInFlight: overrides.aiInFlight || new Set(),
     amountUi:
       overrides.amountUi || createAmountUiQueue({ minIntervalMs: 0 }),
     state: {
       get: (id) => store.get(String(id)) || null,
-      set: (id, value) => store.set(String(id), value),
+      peek: (id) => store.get(String(id)) || null,
+      set: (id, value) =>
+        store.set(String(id), { ...value, _ts: Date.now() }),
       update: (id, value) => {
-        store.set(String(id), { ...(store.get(String(id)) || {}), ...value });
+        store.set(String(id), {
+          ...(store.get(String(id)) || {}),
+          ...value,
+          _ts: Date.now(),
+        });
       },
       del: (id) => store.delete(String(id)),
     },

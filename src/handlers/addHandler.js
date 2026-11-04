@@ -41,10 +41,9 @@ export async function startAmountStep(bot, deps, chatId) {
   });
 }
 
-export async function showCalendarStep(bot, deps, chatId) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+export async function showCalendarStep(bot, deps, chatId, date = new Date()) {
+  const year = date.getFullYear();
+  const month = date.getMonth() + 1;
 
   const sent = await bot.sendMessage(
     chatId,
@@ -129,9 +128,10 @@ export async function completeAmountStep(bot, deps, chatId, userState, amount) {
 }
 
 // Добавляем экспорт функции для обработки команды /add
-export async function handleAddCommand(bot, deps, msg) {
+export async function handleAddCommand(bot, deps, msg, options = {}) {
   const { sheets, state, logger } = deps;
   const chatId = msg.chat.id;
+  const prefill = options.prefill || null;
   logger.info(`/add от пользователя ${chatId}`);
 
   try {
@@ -158,17 +158,36 @@ export async function handleAddCommand(bot, deps, msg) {
         chatId,
         existingState.amountMessageId
       );
+      await removeInlineKeyboard(bot, logger, chatId, existingState.aiMessageId);
     }
+
+    const prefillData = {};
+    if (prefill?.date instanceof Date && !Number.isNaN(prefill.date.getTime())) {
+      prefillData.date = formatDateToDisplay(prefill.date);
+    }
+    if (prefill?.category) prefillData.category = prefill.category;
+    if (prefill?.wallet) prefillData.wallet = prefill.wallet;
+    if (typeof prefill?.note === "string") prefillData.note = prefill.note;
+
+    const amountDraft =
+      prefill && Number.isFinite(prefill.amount)
+        ? String(prefill.amount).replace(".", ",")
+        : "";
 
     // Сохраняем в состоянии для последующего использования
     state.set(chatId, {
       step: "date",
-      data: {},
+      data: prefillData,
       categories,
       wallets,
+      amountDraft,
     });
 
-    await showCalendarStep(bot, deps, chatId);
+    const calendarDate =
+      prefill?.date instanceof Date && !Number.isNaN(prefill.date.getTime())
+        ? prefill.date
+        : new Date();
+    await showCalendarStep(bot, deps, chatId, calendarDate);
   } catch (err) {
     logger.error("Ошибка при получении категорий/кошельков", err);
     await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.INIT_ERROR);

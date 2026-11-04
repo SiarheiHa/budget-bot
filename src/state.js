@@ -62,6 +62,26 @@ export function getUserState(userId, opts = {}) {
 }
 
 /**
+ * Получить состояние без проверки TTL и без удаления.
+ * Нужно обработчикам, которые решают, отдавать ли сообщение другому хендлеру.
+ * @param {number} userId
+ * @returns {object|null}
+ */
+export function peekUserState(userId) {
+  return userStates.get(userId) || null;
+}
+
+/**
+ * Проверить, истёк ли TTL у записи состояния.
+ * @param {object|null} entry
+ * @returns {boolean}
+ */
+export function isUserStateExpired(entry) {
+  if (!entry) return true;
+  return Date.now() - (entry._ts || 0) > STATE_TTL_MS;
+}
+
+/**
  * Очистить состояние пользователя (после завершения диалога)
  * @param {number} userId - ID пользователя Telegram
  */

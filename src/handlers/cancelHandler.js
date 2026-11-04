@@ -28,6 +28,7 @@ export async function handleCancel(bot, deps, msg) {
       chatId,
       currentState.amountMessageId
     );
+    await removeInlineKeyboard(bot, logger, chatId, currentState.aiMessageId);
 
     await bot.sendMessage(chatId, MESSAGES.COMMON.CANCELLED);
     await showMainKeyboard(bot, chatId);

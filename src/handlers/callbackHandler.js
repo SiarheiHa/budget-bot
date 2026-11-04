@@ -9,6 +9,7 @@ import {
   completeDateStep,
 } from "./addHandler.js";
 import { handleCancel } from "./cancelHandler.js";
+import { confirmAiDraft, editAiDraft } from "./aiHandler.js";
 
 function resolveDate(parsed) {
   if (parsed.type === "today" || parsed.type === "yesterday") {
@@ -122,11 +123,29 @@ export function registerCallbackHandler(bot, deps) {
         return;
       }
 
-      if (data === "v1:cancel") {
+      if (data === "v1:cancel" || data === "ai:cancel") {
         logger.debug?.(`cancel chat=${chatId}`);
         const cancellation = handleCancel(bot, deps, { chat: { id: chatId } });
         await answer();
         await cancellation;
+        return;
+      }
+
+      if (data === "ai:confirm") {
+        const result = await confirmAiDraft(bot, deps, chatId);
+        await answer(
+          result === "stale"
+            ? { text: MESSAGES.AI.STALE, show_alert: true }
+            : undefined
+        );
+        return;
+      }
+
+      if (data === "ai:edit") {
+        const handled = await editAiDraft(bot, deps, chatId);
+        await answer(
+          handled ? undefined : { text: MESSAGES.AI.STALE, show_alert: true }
+        );
         return;
       }
 

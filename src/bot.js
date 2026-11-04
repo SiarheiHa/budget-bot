@@ -7,12 +7,15 @@ import { registerBalanceHandler } from "./handlers/balanceHandler.js";
 import { registerAddHandler } from "./handlers/addHandler.js";
 import { registerCancelHandler } from "./handlers/cancelHandler.js";
 import { registerCallbackHandler } from "./handlers/callbackHandler.js";
+import { registerAiHandler } from "./handlers/aiHandler.js";
+import { createAiParser } from "./aiParser.js";
 import { createAmountUiQueue } from "./amountUi.js";
 import {
   setUserState,
   getUserState,
   clearUserState,
   updateUserState,
+  peekUserState,
 } from "./state.js";
 
 // Создаём экземпляр бота
@@ -29,6 +32,7 @@ const state = {
   get: getUserState,
   del: clearUserState,
   update: updateUserState,
+  peek: peekUserState,
 };
 
 const amountUi = createAmountUiQueue({
@@ -36,8 +40,18 @@ const amountUi = createAmountUiQueue({
   debounceMs: 1000,
 });
 
+const ai = createAiParser({ config, logger });
+
 // Объект с зависимостями для обработчиков
-const deps = { sheets, state, config, logger, amountUi };
+const deps = {
+  sheets,
+  state,
+  config,
+  logger,
+  amountUi,
+  ai,
+  aiInFlight: new Set(),
+};
 
 // Регистрируем все обработчики
 function registerHandlers() {
@@ -45,6 +59,9 @@ function registerHandlers() {
   registerBalanceHandler(bot, deps);
   registerCancelHandler(bot, deps);
   registerCallbackHandler(bot, deps);
+  if (config.aiParsingEnabled) {
+    registerAiHandler(bot, deps);
+  }
   registerAddHandler(bot, deps);
 }
 
