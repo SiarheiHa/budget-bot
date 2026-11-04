@@ -182,7 +182,7 @@ export function registerAddHandler(bot, deps) {
   const withAccess = createAccessMiddleware(bot, deps);
   bot.onText(
     /^\/add$/,
-    withAccess(async (msg) => {
+    withAccess(async (bot, deps, msg) => {
       await handleAddCommand(bot, deps, msg);
     })
   );
