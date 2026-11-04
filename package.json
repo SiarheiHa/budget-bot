@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test tests/*.test.js",
+    "lint": "eslint .",
     "start": "node server.js",
     "dev": "nodemon src/index.js"
   },
@@ -19,6 +20,8 @@
     "node-telegram-bot-api": "^0.63.0"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "eslint": "^9.39.5",
     "nodemon": "^3.1.10"
   },
   "engines": {
