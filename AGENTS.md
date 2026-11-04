@@ -42,7 +42,7 @@ Telegram-бот учёта бюджета. Данные хранятся в Goog
 
 ## Definition of Done
 - `npm test` проходит.
-- `npm run lint` проходит (после подключения линтера).
+- `npm run lint` проходит.
 - Изменения отражены в `docs/` там, где это важно.
 - Сделан коммит в рабочую ветку.
 
@@ -65,6 +65,7 @@ Telegram-бот учёта бюджета. Данные хранятся в Goog
 - `npm run dev` — локальный запуск с nodemon
 - `npm start` — запуск через server.js (health-check на /health)
 - `npm test` — запуск unit-тестов (node:test)
+- `npm run lint` — проверка кода (ESLint)
 
 ## Особенности
 - Auth Google: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.json`

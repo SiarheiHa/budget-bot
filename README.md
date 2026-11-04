@@ -39,6 +39,7 @@ npm install
 npm run dev   # запуск с nodemon (src/index.js)
 npm start     # запуск через server.js (с health-check на /health)
 npm test      # unit-тесты (node:test)
+npm run lint  # проверка кода (ESLint)
 ```
 
 ## Особенности
