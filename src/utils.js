@@ -22,11 +22,10 @@ import { MESSAGES } from "./messages.js";
  * @returns {Date|null}
  */
 
-export function parseDateDDMMYYYY(text) {
+export function parseDateDDMMYYYY(text, now = new Date()) {
   if (!text || typeof text !== "string") return null;
 
   // Получаем текущую дату для использования по умолчанию
-  const now = new Date();
   const currentYear = now.getFullYear();
   const currentMonth = now.getMonth() + 1;
 
@@ -90,6 +89,154 @@ export function parseDateDDMMYYYY(text) {
   }
 
   return date;
+}
+
+const MONTH_NAMES = new Map([
+  ["январь", 1],
+  ["января", 1],
+  ["янв", 1],
+  ["февраль", 2],
+  ["февраля", 2],
+  ["фев", 2],
+  ["март", 3],
+  ["марта", 3],
+  ["мар", 3],
+  ["апрель", 4],
+  ["апреля", 4],
+  ["апр", 4],
+  ["май", 5],
+  ["мая", 5],
+  ["июнь", 6],
+  ["июня", 6],
+  ["июн", 6],
+  ["июль", 7],
+  ["июля", 7],
+  ["июл", 7],
+  ["август", 8],
+  ["августа", 8],
+  ["авг", 8],
+  ["сентябрь", 9],
+  ["сентября", 9],
+  ["сен", 9],
+  ["сент", 9],
+  ["октябрь", 10],
+  ["октября", 10],
+  ["окт", 10],
+  ["ноябрь", 11],
+  ["ноября", 11],
+  ["ноя", 11],
+  ["декабрь", 12],
+  ["декабря", 12],
+  ["дек", 12],
+]);
+
+function monthFromToken(token) {
+  const clean = token.toLowerCase().replace(/\./g, "");
+  if (MONTH_NAMES.has(clean)) return MONTH_NAMES.get(clean);
+  if (clean.length < 3) return null;
+
+  for (const [name, month] of MONTH_NAMES) {
+    if (name.startsWith(clean)) return month;
+  }
+
+  return null;
+}
+
+function createValidDate(day, month, year) {
+  if (
+    !Number.isInteger(day) ||
+    !Number.isInteger(month) ||
+    !Number.isInteger(year) ||
+    year < 1900 ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return null;
+  }
+
+  const date = new Date(year, month - 1, day);
+  if (
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+
+  return date;
+}
+
+function startOfDay(date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function shiftDays(date, days) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate() + days);
+}
+
+/**
+ * Парсит естественное обозначение даты: "сегодня", "вчера", "9 октября",
+ * "9-го октября 2025", "3.10", "03/10/2026", "2026-10-03".
+ * Если год не указан — берётся год из `now`.
+ * @param {string} text
+ * @param {Date} [now]
+ * @returns {Date|null}
+ */
+export function parseNaturalDate(text, now = new Date()) {
+  if (!text || typeof text !== "string") return null;
+
+  const normalized = text
+    .trim()
+    .toLowerCase()
+    .replace(/[.,!?;:]+$/g, "")
+    .replace(/\s+/g, " ");
+
+  if (!normalized) return null;
+
+  if (normalized === "сегодня") return startOfDay(now);
+  if (normalized === "вчера") return shiftDays(now, -1);
+  if (normalized === "позавчера") return shiftDays(now, -2);
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(normalized);
+  if (isoMatch) {
+    return createValidDate(
+      Number(isoMatch[3]),
+      Number(isoMatch[2]),
+      Number(isoMatch[1])
+    );
+  }
+
+  const dayMonthMatch =
+    /^(\d{1,2})(?:\s*-?\s*го)?\s+([а-яё.]+)(?:\s+(\d{4}))?(?:\s+(?:года|г))?$/.exec(
+      normalized
+    );
+  if (dayMonthMatch) {
+    const day = Number(dayMonthMatch[1]);
+    const month = monthFromToken(dayMonthMatch[2]);
+    const year = dayMonthMatch[3]
+      ? Number(dayMonthMatch[3])
+      : now.getFullYear();
+
+    return month ? createValidDate(day, month, year) : null;
+  }
+
+  const monthDayMatch =
+    /^([а-яё.]+)\s+(\d{1,2})(?:\s+(\d{4}))?(?:\s+(?:года|г))?$/.exec(
+      normalized
+    );
+  if (monthDayMatch) {
+    const month = monthFromToken(monthDayMatch[1]);
+    const day = Number(monthDayMatch[2]);
+    const year = monthDayMatch[3]
+      ? Number(monthDayMatch[3])
+      : now.getFullYear();
+
+    return month ? createValidDate(day, month, year) : null;
+  }
+
+  return parseDateDDMMYYYY(normalized, now);
 }
 
 /**

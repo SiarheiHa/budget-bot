@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseDateDDMMYYYY, parseAmount, formatDateToDisplay } from '../src/utils.js';
+import {
+  parseDateDDMMYYYY,
+  parseNaturalDate,
+  parseAmount,
+  formatDateToDisplay,
+} from '../src/utils.js';
 
 test('parseDateDDMMYYYY: full date DD.MM.YYYY', () => {
   const d = parseDateDDMMYYYY('13.09.2025');
@@ -50,4 +55,43 @@ test('parseAmount: invalid returns NaN', () => {
 test('formatDateToDisplay', () => {
   const d = new Date(2025, 8, 13); // Sep 13 2025
   assert.equal(formatDateToDisplay(d), '13.09.2025');
+});
+
+const NOW = new Date(2026, 10, 4); // Nov 4 2026
+
+function ymd(date) {
+  return [
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate(),
+  ];
+}
+
+test('parseNaturalDate: сегодня и вчера', () => {
+  assert.deepEqual(ymd(parseNaturalDate('сегодня', NOW)), [2026, 11, 4]);
+  assert.deepEqual(ymd(parseNaturalDate('вчера', NOW)), [2026, 11, 3]);
+  assert.deepEqual(ymd(parseNaturalDate('позавчера', NOW)), [2026, 11, 2]);
+});
+
+test('parseNaturalDate: день и месяц словом', () => {
+  assert.deepEqual(ymd(parseNaturalDate('9 октября', NOW)), [2026, 10, 9]);
+  assert.deepEqual(ymd(parseNaturalDate('9-го октября', NOW)), [2026, 10, 9]);
+  assert.deepEqual(ymd(parseNaturalDate('октября 9', NOW)), [2026, 10, 9]);
+  assert.deepEqual(ymd(parseNaturalDate('9 октября 2025 г.', NOW)), [
+    2025, 10, 9,
+  ]);
+});
+
+test('parseNaturalDate: числовые форматы', () => {
+  assert.deepEqual(ymd(parseNaturalDate('3.10', NOW)), [2026, 10, 3]);
+  assert.deepEqual(ymd(parseNaturalDate('03/10/2026', NOW)), [2026, 10, 3]);
+  assert.deepEqual(ymd(parseNaturalDate('03-10-26', NOW)), [2026, 10, 3]);
+  assert.deepEqual(ymd(parseNaturalDate('2026-10-03', NOW)), [2026, 10, 3]);
+});
+
+test('parseNaturalDate: невалидные значения', () => {
+  assert.equal(parseNaturalDate('32 октября', NOW), null);
+  assert.equal(parseNaturalDate('9 смородины', NOW), null);
+  assert.equal(parseNaturalDate('не дата', NOW), null);
+  assert.equal(parseNaturalDate('', NOW), null);
 });
