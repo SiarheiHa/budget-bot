@@ -43,6 +43,17 @@ if (allowedUsers.length === 0) {
   throw new Error(errorMessage);
 }
 
+const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID || null;
+const cloudflareApiToken = process.env.CLOUDFLARE_API_TOKEN || null;
+const cloudflareAiModel =
+  process.env.CLOUDFLARE_AI_MODEL ||
+  "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
+
+// AI-парсинг — опциональная возможность: без ключей бот работает как раньше.
+const aiParsingEnabled =
+  process.env.AI_PARSING_ENABLED !== "false" &&
+  Boolean(cloudflareAccountId && cloudflareApiToken);
+
 // Экспортируем объект config, чтобы в других файлах проекта можно было
 // легко получить доступ к настройкам (без прямого обращения к process.env).
 export const config = {
@@ -58,4 +69,10 @@ export const config = {
   // Учётные данные Google (JSON ключ) могут храниться в переменной окружения
   // в Base64 виде (удобно для деплоя, например, на Railway).
   googleCredentialsB64: process.env.GOOGLE_CREDENTIALS_B64 || null,
+
+  // Cloudflare Workers AI (REST API)
+  cloudflareAccountId,
+  cloudflareApiToken,
+  cloudflareAiModel,
+  aiParsingEnabled,
 };

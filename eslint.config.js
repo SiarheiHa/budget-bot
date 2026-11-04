@@ -11,9 +11,11 @@ export default [
       ecmaVersion: "latest",
       sourceType: "module",
       globals: {
+        AbortController: "readonly",
         Buffer: "readonly",
         clearTimeout: "readonly",
         console: "readonly",
+        fetch: "readonly",
         process: "readonly",
         setImmediate: "readonly",
         setTimeout: "readonly",

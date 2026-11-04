@@ -21,6 +21,10 @@ Telegram-бот для учёта финансов. Данные хранятс�
 | `GOOGLE_CREDENTIALS_B64` | нет | JSON ключ сервисного аккаунта в Base64 (приоритетный способ авторизации) |
 | `NODE_ENV` | нет | `development` или `production` |
 | `PORT` | нет | Порт health-check сервера (по умолчанию 3000) |
+| `CLOUDFLARE_ACCOUNT_ID` | нет | Account ID для Cloudflare Workers AI |
+| `CLOUDFLARE_API_TOKEN` | нет | API-токен с правами Workers AI Read/Edit |
+| `CLOUDFLARE_AI_MODEL` | нет | Модель Workers AI (по умолчанию `@cf/meta/llama-3.3-70b-instruct-fp8-fast`) |
+| `AI_PARSING_ENABLED` | нет | `false` отключает распознавание свободного текста |
 
 Если `GOOGLE_CREDENTIALS_B64` не задан, бот попытается использовать `credentials.json` в корне проекта.
 
