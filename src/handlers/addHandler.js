@@ -133,7 +133,6 @@ export async function handleAddCommand(bot, deps, msg) {
   const { sheets, state, logger } = deps;
   const chatId = msg.chat.id;
   logger.info(`/add от пользователя ${chatId}`);
-  // console.log(state.get(chatId));
 
   try {
     // Получаем категории и кошельки из таблицы
