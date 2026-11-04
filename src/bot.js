@@ -18,6 +18,10 @@ import {
 // Создаём экземпляр бота
 const bot = new TelegramBot(config.botToken, { polling: true });
 
+bot.on("polling_error", (err) => {
+  logger.error(`polling_error: ${err.message}`);
+});
+
 // Инициализируем зависимости
 
 const state = {
@@ -27,7 +31,10 @@ const state = {
   update: updateUserState,
 };
 
-const amountUi = createAmountUiQueue();
+const amountUi = createAmountUiQueue({
+  leading: false,
+  debounceMs: 1000,
+});
 
 // Объект с зависимостями для обработчиков
 const deps = { sheets, state, config, logger, amountUi };
@@ -48,6 +55,18 @@ try {
 } catch (error) {
   logger.error("Ошибка при регистрации обработчиков:", error);
   process.exit(1);
+}
+
+try {
+  const me = await bot.getMe();
+  const webhook = await bot.getWebHookInfo();
+  logger.info(
+    `Бот @${me.username} (id=${me.id}), pid=${process.pid}, webhook=${
+      webhook.url || "none"
+    }, pending=${webhook.pending_update_count}`
+  );
+} catch (err) {
+  logger.warn(`Не удалось получить информацию о боте: ${err.message}`);
 }
 
 export default bot;

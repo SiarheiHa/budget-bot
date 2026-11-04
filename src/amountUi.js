@@ -18,6 +18,8 @@ function getRetryAfterSeconds(err) {
 
 export function createAmountUiQueue(options = {}) {
   const minIntervalMs = options.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS;
+  const debounceMs = options.debounceMs ?? minIntervalMs;
+  const leading = options.leading ?? true;
   const now = options.now ?? (() => Date.now());
   const setTimer = options.setTimeout ?? setTimeout;
   const clearTimer = options.clearTimeout ?? clearTimeout;
@@ -110,7 +112,19 @@ export function createAmountUiQueue(options = {}) {
     }
 
     task.hasPending = true;
-    drain(task);
+
+    if (leading) {
+      drain(task);
+      return;
+    }
+
+    if (task.timer) {
+      clearTimer(task.timer);
+    }
+    task.timer = setTimer(() => {
+      task.timer = null;
+      drain(task);
+    }, debounceMs);
   }
 
   async function abort(chatId) {

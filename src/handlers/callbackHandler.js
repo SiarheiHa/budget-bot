@@ -62,8 +62,11 @@ async function renderAmountMessage(bot, deps, chatId) {
   const state = deps.state.get(chatId);
   if (!state || state.step !== "amount") return;
 
-  const text = buildAmountText(state.amountDraft || "");
+  const draft = state.amountDraft || "";
+  const text = buildAmountText(draft);
   const replyMarkup = createAmountKeyboard().reply_markup;
+
+  deps.logger.debug?.(`amount render start draft="${draft}"`);
 
   if (state.amountMessageId) {
     try {
@@ -72,6 +75,7 @@ async function renderAmountMessage(bot, deps, chatId) {
         message_id: state.amountMessageId,
         reply_markup: replyMarkup,
       });
+      deps.logger.debug?.(`amount render done draft="${draft}"`);
       return;
     } catch (err) {
       if (!isMessageNotFoundError(err)) throw err;
@@ -90,6 +94,7 @@ export function registerCallbackHandler(bot, deps) {
   bot.on("callback_query", async (query) => {
     const chatId = query.message?.chat?.id ?? query.from?.id;
     const data = query.data || "";
+    logger.debug?.(`callback_query id=${query.id} data="${data}"`);
     let answered = false;
 
     const answer = async (options) => {
@@ -118,6 +123,7 @@ export function registerCallbackHandler(bot, deps) {
       }
 
       if (data === "v1:cancel") {
+        logger.debug?.(`cancel chat=${chatId}`);
         const cancellation = handleCancel(bot, deps, { chat: { id: chatId } });
         await answer();
         await cancellation;
@@ -134,6 +140,12 @@ export function registerCallbackHandler(bot, deps) {
           });
           return;
         }
+
+        logger.debug?.(
+          `amount action=${amountAction.type} before="${
+            amountState.amountDraft || ""
+          }"`
+        );
 
         if (amountAction.type === "confirm") {
           const amount = parseAmount(amountState.amountDraft || "");
@@ -173,7 +185,7 @@ export function registerCallbackHandler(bot, deps) {
         }
 
         deps.state.update(chatId, { amountDraft: nextDraft });
-        await answer();
+        logger.debug?.(`amount action=${amountAction.type} after="${nextDraft}"`);
         deps.amountUi.schedule(
           chatId,
           () => renderAmountMessage(bot, deps, chatId),
@@ -184,6 +196,7 @@ export function registerCallbackHandler(bot, deps) {
               ),
           }
         );
+        await answer();
         return;
       }
 

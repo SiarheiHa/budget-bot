@@ -161,3 +161,64 @@ test("amountUi: message is not modified не считается ошибкой",
   await queue.whenIdle(1);
   assert.deepEqual(errors, []);
 });
+
+test("amountUi: leading=false не рендерит во время серии нажатий", async () => {
+  const clock = createClock();
+  const queue = createAmountUiQueue({
+    minIntervalMs: 100,
+    leading: false,
+    now: clock.now,
+    setTimeout: clock.setTimeout,
+    clearTimeout: clock.clearTimeout,
+  });
+  const rendered = [];
+  let draft = "";
+
+  const render = async () => {
+    rendered.push(draft);
+  };
+
+  draft = "1";
+  queue.schedule(1, render);
+  draft = "12";
+  queue.schedule(1, render);
+  draft = "123";
+  queue.schedule(1, render);
+
+  await flush();
+  assert.deepEqual(rendered, []);
+
+  await clock.advance(100);
+  assert.deepEqual(rendered, ["123"]);
+
+  await queue.whenIdle(1);
+});
+
+test("amountUi: debounceMs отсчитывается от последнего нажатия", async () => {
+  const clock = createClock();
+  const queue = createAmountUiQueue({
+    minIntervalMs: 100,
+    debounceMs: 300,
+    leading: false,
+    now: clock.now,
+    setTimeout: clock.setTimeout,
+    clearTimeout: clock.clearTimeout,
+  });
+  const rendered = [];
+
+  const render = async () => {
+    rendered.push("render");
+  };
+
+  queue.schedule(1, render);
+  await clock.advance(200);
+  queue.schedule(1, render);
+
+  await clock.advance(299);
+  assert.deepEqual(rendered, []);
+
+  await clock.advance(1);
+  assert.deepEqual(rendered, ["render"]);
+
+  await queue.whenIdle(1);
+});
