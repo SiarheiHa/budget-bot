@@ -3,12 +3,14 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { registerCallbackHandler } from "../src/handlers/callbackHandler.js";
 import { createAmountUiQueue } from "../src/amountUi.js";
+import { MESSAGES } from "../src/messages.js";
 
 function createBot() {
   const bot = new EventEmitter();
   bot.answers = [];
   bot.edits = [];
   bot.sent = [];
+  bot.deleted = [];
 
   bot.answerCallbackQuery = async (id, options) => {
     bot.answers.push({ id, options });
@@ -18,6 +20,9 @@ function createBot() {
   };
   bot.editMessageReplyMarkup = async (replyMarkup, form) => {
     bot.edits.push({ type: "markup", replyMarkup, form });
+  };
+  bot.deleteMessage = async (chatId, messageId) => {
+    bot.deleted.push({ chatId, messageId });
   };
   bot.sendMessage = async (chatId, text, options) => {
     bot.sent.push({ chatId, text, options });
@@ -34,7 +39,7 @@ function createDeps(initialState = {}) {
 
   return {
     config: { allowedUsers: ["1"] },
-    logger: { info() {}, warn() {}, error() {} },
+    logger: { info() {}, warn() {}, error() {}, debug() {} },
     sheets: {},
     amountUi: createAmountUiQueue({ minIntervalMs: 0 }),
     state: {
@@ -52,25 +57,42 @@ function createDeps(initialState = {}) {
   };
 }
 
-async function emitCallback(bot, query) {
+async function emitCallback(bot, deps, data, options = {}) {
   const handler = bot.listeners("callback_query")[0];
   assert.equal(typeof handler, "function");
-  await handler(query);
+
+  const current = deps.store.get("1");
+  await handler({
+    id: options.id ?? data,
+    data,
+    message: {
+      message_id: options.messageId ?? current?.cardMessageId,
+      chat: { id: 1 },
+    },
+    from: { id: 1 },
+  });
 }
 
-test("callback: навигация перерисовывает календарь", async () => {
+function amountState(overrides = {}) {
+  return {
+    step: "amount",
+    data: { date: "31.10.2026" },
+    amountDraft: "",
+    cardMessageId: 10,
+    categories: ["Еда", "Транспорт"],
+    wallets: ["Наличные", "Карта"],
+    ...overrides,
+  };
+}
+
+test("callback: навигация перерисовывает карточку с календарём", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: { step: "date", data: {}, calendarMessageId: 10 },
+    1: { step: "date", data: {}, cardMessageId: 10 },
   });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q1",
-    data: "cal:nav:2026-09",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "cal:nav:2026-09");
 
   assert.equal(bot.answers.length, 1);
   assert.equal(bot.edits.length, 1);
@@ -79,46 +101,41 @@ test("callback: навигация перерисовывает календар
   assert.equal(deps.store.get("1").step, "date");
 });
 
-test("callback: выбор дня переводит к сумме", async () => {
+test("callback: выбор дня переводит к сумме в той же карточке", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: { step: "date", data: {}, calendarMessageId: 10 },
+    1: { step: "date", data: {}, cardMessageId: 10 },
   });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q2",
-    data: "cal:day:2026-10-31",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "cal:day:2026-10-31");
 
   const state = deps.store.get("1");
   assert.equal(state.step, "amount");
   assert.equal(state.data.date, "31.10.2026");
-  assert.match(bot.edits[0].text, /31\.10\.2026/);
-  assert.match(bot.sent[0].text, /Введите сумму/);
-  assert.ok(
-    Array.isArray(bot.sent[0].options.reply_markup.inline_keyboard)
-  );
-  assert.equal(bot.sent[0].options.reply_markup.force_reply, undefined);
   assert.equal(state.amountDraft, "");
-  assert.ok(state.amountMessageId);
+  assert.equal(state.cardMessageId, 10);
+
+  assert.equal(bot.edits.length, 1);
+  assert.equal(bot.edits[0].form.message_id, 10);
+  assert.match(bot.edits[0].text, /31\.10\.2026/);
+  assert.match(bot.edits[0].text, /Введите сумму/);
+  assert.ok(Array.isArray(bot.edits[0].form.reply_markup.inline_keyboard));
+  assert.equal(bot.sent.length, 0);
 });
 
-test("callback: устаревшая кнопка даёт alert и не меняет state", async () => {
+test("callback: устаревшая кнопка даты даёт alert и не меняет state", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: { step: "amount", data: { date: "31.10.2026" }, calendarMessageId: 10 },
+    1: {
+      step: "amount",
+      data: { date: "31.10.2026" },
+      cardMessageId: 10,
+    },
   });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q3",
-    data: "cal:day:2026-10-31",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "cal:day:2026-10-31");
 
   assert.equal(bot.answers.length, 1);
   assert.equal(bot.answers[0].options.show_alert, true);
@@ -130,17 +147,12 @@ test("callback: устаревшая кнопка даёт alert и не мен�
 test("callback: нет доступа", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: { step: "date", data: {}, calendarMessageId: 10 },
+    1: { step: "date", data: {}, cardMessageId: 10 },
   });
   deps.config.allowedUsers = ["2"];
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q4",
-    data: "cal:nav:2026-09",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "cal:nav:2026-09");
 
   assert.equal(bot.answers.length, 1);
   assert.equal(bot.answers[0].options.show_alert, true);
@@ -148,55 +160,29 @@ test("callback: нет доступа", async () => {
   assert.equal(bot.edits.length, 0);
 });
 
-test("callback: отмена очищает state и убирает клавиатуры", async () => {
+test("callback: отмена удаляет карточку и оставляет одно сообщение", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      calendarMessageId: 10,
-      amountMessageId: 11,
-    },
+    1: amountState({ cardMessageId: 10 }),
   });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q5",
-    data: "v1:cancel",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "v1:cancel");
 
   assert.equal(deps.store.has("1"), false);
   assert.equal(bot.answers.length, 1);
-  assert.equal(
-    bot.edits.filter((edit) => edit.type === "markup").length,
-    2
-  );
-  assert.ok(bot.sent.some((message) => /Операция отменена/.test(message.text)));
+  assert.equal(bot.sent.length, 1);
+  assert.equal(bot.sent[0].text, MESSAGES.COMMON.CANCELLED);
+  assert.ok(bot.sent[0].options.reply_markup.keyboard);
+  assert.ok(bot.deleted.some((item) => item.messageId === 10));
 });
 
 test("callback: ввод суммы кнопками и переключение знака", async () => {
   const bot = createBot();
-  const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      amountDraft: "",
-      amountMessageId: 10,
-      categories: ["Еда"],
-      wallets: ["Наличные"],
-    },
-  });
+  const deps = createDeps({ 1: amountState() });
   registerCallbackHandler(bot, deps);
 
-  const send = (data) =>
-    emitCallback(bot, {
-      id: data,
-      data,
-      message: { chat: { id: 1 } },
-      from: { id: 1 },
-    });
+  const send = (data) => emitCallback(bot, deps, data);
 
   await send("v1:amt:d:5");
   await send("v1:amt:d:0");
@@ -209,57 +195,39 @@ test("callback: ввод суммы кнопками и переключение
   assert.equal(deps.store.get("1").amountDraft, "-500,5");
   assert.equal(bot.answers.length, 6);
   assert.ok(bot.edits.every((edit) => edit.type === "text"));
+  assert.ok(bot.edits.every((edit) => edit.form.message_id === 10));
   assert.match(bot.edits.at(-1).text, /-500,5/);
 });
 
-test("callback: подтверждение отрицательной суммы", async () => {
+test("callback: подтверждение отрицательной суммы переводит к категории", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      amountDraft: "-500,50",
-      amountMessageId: 10,
-      categories: ["Еда"],
-      wallets: ["Наличные"],
-    },
+    1: amountState({ amountDraft: "-500,50" }),
   });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q6",
-    data: "v1:amt:ok",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "v1:amt:ok");
 
   const state = deps.store.get("1");
   assert.equal(state.step, "category");
   assert.equal(state.data.amount, -500.5);
+  assert.equal(state.amountDraft, "");
+  assert.equal(bot.edits.length, 1);
+  assert.equal(bot.edits[0].form.message_id, 10);
   assert.match(bot.edits[0].text, /-500,5/);
-  assert.match(bot.sent[0].text, /Выберите категорию/);
+  assert.ok(
+    bot.edits[0].form.reply_markup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "add:pick:category:0")
+  );
 });
 
 test("callback: пустая сумма не подтверждается", async () => {
   const bot = createBot();
-  const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      amountDraft: "",
-      amountMessageId: 10,
-      categories: ["Еда"],
-      wallets: ["Наличные"],
-    },
-  });
+  const deps = createDeps({ 1: amountState() });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q7",
-    data: "v1:amt:ok",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "v1:amt:ok");
 
   assert.equal(bot.answers[0].options.show_alert, true);
   assert.match(bot.answers[0].options.text, /отличную от нуля/);
@@ -271,21 +239,15 @@ test("callback: пустая сумма не подтверждается", asyn
 test("callback: устаревшая кнопка суммы", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: {
+    1: amountState({
       step: "category",
       data: { date: "31.10.2026", amount: -500 },
-      categories: ["Еда"],
-      wallets: ["Наличные"],
-    },
+      amountDraft: undefined,
+    }),
   });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q8",
-    data: "v1:amt:d:5",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "v1:amt:d:5");
 
   assert.equal(bot.answers[0].options.show_alert, true);
   assert.match(bot.answers[0].options.text, /устарела/);
@@ -296,23 +258,11 @@ test("callback: устаревшая кнопка суммы", async () => {
 test("callback: лимит дробной части", async () => {
   const bot = createBot();
   const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      amountDraft: "1,23",
-      amountMessageId: 10,
-      categories: ["Еда"],
-      wallets: ["Наличные"],
-    },
+    1: amountState({ amountDraft: "1,23" }),
   });
   registerCallbackHandler(bot, deps);
 
-  await emitCallback(bot, {
-    id: "q9",
-    data: "v1:amt:d:4",
-    message: { chat: { id: 1 } },
-    from: { id: 1 },
-  });
+  await emitCallback(bot, deps, "v1:amt:d:4");
 
   assert.equal(bot.answers[0].options.show_alert, true);
   assert.match(bot.answers[0].options.text, /лимит/);
@@ -331,26 +281,11 @@ test("callback: одновременные нажатия не теряют ци
     await answersGate;
   };
 
-  const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      amountDraft: "",
-      amountMessageId: 10,
-    },
-  });
+  const deps = createDeps({ 1: amountState() });
   registerCallbackHandler(bot, deps);
 
-  const send = (id, data) =>
-    emitCallback(bot, {
-      id,
-      data,
-      message: { chat: { id: 1 } },
-      from: { id: 1 },
-    });
-
-  const first = send("q1", "v1:amt:d:1");
-  const second = send("q2", "v1:amt:d:2");
+  const first = emitCallback(bot, deps, "v1:amt:d:1", { id: "q1" });
+  const second = emitCallback(bot, deps, "v1:amt:d:2", { id: "q2" });
 
   releaseAnswers();
   await Promise.all([first, second]);
@@ -360,7 +295,7 @@ test("callback: одновременные нажатия не теряют ци
   assert.match(bot.edits.at(-1).text, /12/);
 });
 
-test("callback: Готово во время in-flight не возвращает клавиатуру", async () => {
+test("callback: Готово во время in-flight переводит к категории", async () => {
   const bot = createBot();
   const originalEdit = bot.editMessageText;
   let releaseEdit;
@@ -376,39 +311,33 @@ test("callback: Готово во время in-flight не возвращает
     return originalEdit(text, form);
   };
 
-  const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      amountDraft: "",
-      amountMessageId: 10,
-      categories: ["Еда"],
-      wallets: ["Наличные"],
-    },
-  });
+  const deps = createDeps({ 1: amountState() });
   registerCallbackHandler(bot, deps);
 
-  const send = (id, data) =>
-    emitCallback(bot, {
-      id,
-      data,
-      message: { chat: { id: 1 } },
-      from: { id: 1 },
-    });
+  const send = (data) => emitCallback(bot, deps, data);
 
-  await send("q1", "v1:amt:d:1");
-  const confirm = send("q2", "v1:amt:ok");
+  await send("v1:amt:d:1");
+  const confirm = send("v1:amt:ok");
 
   releaseEdit();
   await confirm;
   await deps.amountUi.whenIdle("1");
 
+  const state = deps.store.get("1");
+  assert.equal(state.step, "category");
+  assert.equal(state.data.amount, 1);
+
   const last = bot.edits.at(-1);
+  assert.equal(last.form.message_id, 10);
   assert.match(last.text, /Сумма: 1/);
-  assert.deepEqual(last.form.reply_markup.inline_keyboard, []);
+  assert.ok(
+    last.form.reply_markup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "add:pick:category:0")
+  );
 });
 
-test("callback: Отмена во время in-flight не возвращает клавиатуру", async () => {
+test("callback: отмена во время in-flight удаляет карточку", async () => {
   const bot = createBot();
   const originalEdit = bot.editMessageText;
   let releaseEdit;
@@ -424,33 +353,98 @@ test("callback: Отмена во время in-flight не возвращает
     return originalEdit(text, form);
   };
 
-  const deps = createDeps({
-    1: {
-      step: "amount",
-      data: { date: "31.10.2026" },
-      amountDraft: "",
-      amountMessageId: 10,
-      calendarMessageId: 11,
-    },
-  });
+  const deps = createDeps({ 1: amountState() });
   registerCallbackHandler(bot, deps);
 
-  const send = (id, data) =>
-    emitCallback(bot, {
-      id,
-      data,
-      message: { chat: { id: 1 } },
-      from: { id: 1 },
-    });
+  const send = (data) => emitCallback(bot, deps, data);
 
-  await send("q1", "v1:amt:d:1");
-  const cancel = send("q2", "v1:cancel");
+  await send("v1:amt:d:1");
+  const cancel = send("v1:cancel");
 
   releaseEdit();
   await cancel;
   await deps.amountUi.whenIdle("1");
 
-  const types = bot.edits.map((edit) => edit.type);
-  assert.ok(types.lastIndexOf("markup") > types.lastIndexOf("text"));
   assert.equal(deps.store.has("1"), false);
+  assert.ok(bot.deleted.some((item) => item.messageId === 10));
+  assert.ok(
+    bot.sent.some((message) => message.text === MESSAGES.COMMON.CANCELLED)
+  );
+});
+
+test("callback: выбор категории переводит к кошельку", async () => {
+  const bot = createBot();
+  const deps = createDeps({
+    1: amountState({
+      step: "category",
+      data: { date: "31.10.2026", amount: 100 },
+      amountDraft: undefined,
+    }),
+  });
+  registerCallbackHandler(bot, deps);
+
+  await emitCallback(bot, deps, "add:pick:category:1");
+
+  const state = deps.store.get("1");
+  assert.equal(state.step, "wallet");
+  assert.equal(state.data.category, "Транспорт");
+  assert.equal(state.cardMessageId, 10);
+
+  const edit = bot.edits.at(-1);
+  assert.equal(edit.form.message_id, 10);
+  assert.match(edit.text, /Категория: Транспорт/);
+  assert.match(edit.text, /Выберите кошелёк/);
+  assert.ok(
+    edit.form.reply_markup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "add:pick:wallet:0")
+  );
+});
+
+test("callback: выбор кошелька переводит к примечанию", async () => {
+  const bot = createBot();
+  const deps = createDeps({
+    1: amountState({
+      step: "wallet",
+      data: { date: "31.10.2026", amount: 100, category: "Еда" },
+      amountDraft: undefined,
+    }),
+  });
+  registerCallbackHandler(bot, deps);
+
+  await emitCallback(bot, deps, "add:pick:wallet:0");
+
+  const state = deps.store.get("1");
+  assert.equal(state.step, "note");
+  assert.equal(state.data.wallet, "Наличные");
+
+  const edit = bot.edits.at(-1);
+  assert.equal(edit.form.message_id, 10);
+  assert.match(edit.text, /Кошелёк: Наличные/);
+  assert.match(edit.text, /Введите примечание/);
+  assert.ok(
+    edit.form.reply_markup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "v1:cancel")
+  );
+});
+
+test("callback: кнопка из старой карточки не меняет новый state", async () => {
+  const bot = createBot();
+  const deps = createDeps({
+    1: amountState({
+      step: "category",
+      data: { date: "31.10.2026", amount: 100 },
+      amountDraft: undefined,
+      cardMessageId: 10,
+    }),
+  });
+  registerCallbackHandler(bot, deps);
+
+  await emitCallback(bot, deps, "add:pick:category:0", { messageId: 11 });
+
+  assert.equal(bot.answers[0].options.show_alert, true);
+  assert.match(bot.answers[0].options.text, /устарела/);
+  assert.equal(bot.edits.length, 0);
+  assert.equal(deps.store.get("1").step, "category");
 });

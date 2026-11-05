@@ -6,6 +6,7 @@ export function createBot() {
   bot.answers = [];
   bot.edits = [];
   bot.sent = [];
+  bot.deleted = [];
   bot.textHandlers = [];
   bot.chatActions = [];
 
@@ -17,6 +18,9 @@ export function createBot() {
   };
   bot.editMessageReplyMarkup = async (replyMarkup, form) => {
     bot.edits.push({ type: "markup", replyMarkup, form });
+  };
+  bot.deleteMessage = async (chatId, messageId) => {
+    bot.deleted.push({ chatId, messageId });
   };
   bot.sendMessage = async (chatId, text, options) => {
     const message = {
@@ -98,8 +102,11 @@ export function createDeps(initialState = {}, overrides = {}) {
   };
 }
 
+let nextMessageId = 1;
+
 export function buildMessage(text, chatId = 1) {
   return {
+    message_id: nextMessageId++,
     chat: { id: chatId },
     from: { id: chatId },
     text,

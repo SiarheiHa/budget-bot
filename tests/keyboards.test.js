@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  createAddPickKeyboard,
   createAmountKeyboard,
   createCalendarKeyboard,
 } from "../src/keyboards.js";
@@ -27,6 +28,24 @@ test("createAmountKeyboard: 4 колонки, без 00", () => {
     ["v1:amt:clear", "v1:amt:d:0", "v1:amt:ok"]
   );
   assert.ok(!buttons.includes("v1:amt:00"));
+});
+
+test("createAddPickKeyboard: список и кнопка отмены", () => {
+  const rows = createAddPickKeyboard("category", ["Еда", "Транспорт"])
+    .reply_markup.inline_keyboard;
+
+  assert.deepEqual(
+    rows[0].map((button) => button.callback_data),
+    ["add:pick:category:0"]
+  );
+  assert.deepEqual(
+    rows[1].map((button) => button.callback_data),
+    ["add:pick:category:1"]
+  );
+  assert.deepEqual(
+    rows[2].map((button) => button.callback_data),
+    ["v1:cancel"]
+  );
 });
 
 test("createAmountKeyboard: AI-вариант без знака и с футером", () => {

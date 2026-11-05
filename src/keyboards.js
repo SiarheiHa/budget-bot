@@ -75,6 +75,24 @@ export function createAmountKeyboard(options = {}) {
   };
 }
 
+export function createAddPickKeyboard(field, items = []) {
+  const rows = items.map((item, index) => [
+    {
+      text: item,
+      callback_data: `add:pick:${field}:${index}`,
+    },
+  ]);
+
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        ...rows,
+        [{ text: "❌ Отмена", callback_data: "v1:cancel" }],
+      ],
+    },
+  };
+}
+
 export function createAiConfirmKeyboard() {
   return {
     reply_markup: {

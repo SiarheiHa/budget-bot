@@ -331,6 +331,16 @@ export function createAccessMiddleware(bot, deps) {
   };
 }
 
+export async function safeDeleteMessage(bot, logger, chatId, messageId) {
+  if (!messageId) return;
+
+  try {
+    await bot.deleteMessage(chatId, messageId);
+  } catch (err) {
+    logger?.warn?.(`Не удалось удалить сообщение: ${err.message}`);
+  }
+}
+
 export async function removeInlineKeyboard(bot, logger, chatId, messageId) {
   if (!messageId) return;
 

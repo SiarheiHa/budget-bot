@@ -1,86 +1,20 @@
 import { applyAmountAction, parseAmountCallback } from "../amount.js";
-import {
-  buildCalendarText,
-  parseCalendarCallback,
-  resolveCalendarDate,
-} from "../calendar.js";
-import { createAmountKeyboard, createCalendarKeyboard } from "../keyboards.js";
+import { parseCalendarCallback, resolveCalendarDate } from "../calendar.js";
 import { MESSAGES } from "../messages.js";
 import { checkAccess, parseAmount } from "../utils.js";
 import {
-  buildAmountText,
   completeAmountStep,
   completeDateStep,
+  renderAmountStep,
+  selectCategory,
+  selectWallet,
+  showCalendarStep,
 } from "./addHandler.js";
 import { handleCancel } from "./cancelHandler.js";
 import { handleAiCallback } from "./aiHandler.js";
 
-function isNotModifiedError(err) {
-  const description = err?.response?.body?.description || err?.message || "";
-  return description.includes("message is not modified");
-}
-
-async function editCalendarMessage(bot, deps, chatId, userState, year, month) {
-  const { logger } = deps;
-  const text =
-    MESSAGES.ADD_TRANSACTION.DATE_PROMPT +
-    "\n\n" +
-    buildCalendarText(year, month);
-  const replyMarkup = createCalendarKeyboard(year, month).reply_markup;
-
-  if (userState.calendarMessageId) {
-    try {
-      await bot.editMessageText(text, {
-        chat_id: chatId,
-        message_id: userState.calendarMessageId,
-        reply_markup: replyMarkup,
-      });
-      return;
-    } catch (err) {
-      if (isNotModifiedError(err)) return;
-      logger.warn(`Не удалось обновить календарь: ${err.message}`);
-    }
-  }
-
-  const sent = await bot.sendMessage(chatId, text, {
-    reply_markup: replyMarkup,
-  });
-  deps.state.update(chatId, { calendarMessageId: sent.message_id });
-}
-
-function isMessageNotFoundError(err) {
-  const description = err?.response?.body?.description || err?.message || "";
-  return description.includes("message to edit not found");
-}
-
-async function renderAmountMessage(bot, deps, chatId) {
-  const state = deps.state.get(chatId);
-  if (!state || state.step !== "amount") return;
-
-  const draft = state.amountDraft || "";
-  const text = buildAmountText(draft);
-  const replyMarkup = createAmountKeyboard().reply_markup;
-
-  deps.logger.debug?.(`amount render start draft="${draft}"`);
-
-  if (state.amountMessageId) {
-    try {
-      await bot.editMessageText(text, {
-        chat_id: chatId,
-        message_id: state.amountMessageId,
-        reply_markup: replyMarkup,
-      });
-      deps.logger.debug?.(`amount render done draft="${draft}"`);
-      return;
-    } catch (err) {
-      if (!isMessageNotFoundError(err)) throw err;
-    }
-  }
-
-  const sent = await bot.sendMessage(chatId, text, {
-    reply_markup: replyMarkup,
-  });
-  deps.state.update(chatId, { amountMessageId: sent.message_id });
+function isStaleManualState(userState, step, messageId) {
+  return !userState || userState.step !== step || userState.cardMessageId !== messageId;
 }
 
 export function registerCallbackHandler(bot, deps) {
@@ -88,6 +22,7 @@ export function registerCallbackHandler(bot, deps) {
 
   bot.on("callback_query", async (query) => {
     const chatId = query.message?.chat?.id ?? query.from?.id;
+    const messageId = query.message?.message_id;
     const data = query.data || "";
     logger.debug?.(`callback_query id=${query.id} data="${data}"`);
     let answered = false;
@@ -142,10 +77,42 @@ export function registerCallbackHandler(bot, deps) {
         return;
       }
 
+      const pickMatch = /^add:pick:(category|wallet):(\d+)$/.exec(data);
+      if (pickMatch) {
+        const field = pickMatch[1];
+        const userState = deps.state.get(chatId);
+        if (isStaleManualState(userState, field, messageId)) {
+          await answer({
+            text: MESSAGES.ADD_TRANSACTION.STALE,
+            show_alert: true,
+          });
+          return;
+        }
+
+        const items =
+          field === "category" ? userState.categories : userState.wallets;
+        const item = items?.[Number(pickMatch[2])];
+        if (!item) {
+          await answer({
+            text: MESSAGES.ADD_TRANSACTION.STALE,
+            show_alert: true,
+          });
+          return;
+        }
+
+        await answer();
+        if (field === "category") {
+          await selectCategory(bot, deps, chatId, userState, item);
+        } else {
+          await selectWallet(bot, deps, chatId, userState, item);
+        }
+        return;
+      }
+
       const amountAction = parseAmountCallback(data);
       if (amountAction) {
         const amountState = deps.state.get(chatId);
-        if (!amountState || amountState.step !== "amount") {
+        if (isStaleManualState(amountState, "amount", messageId)) {
           await answer({
             text: MESSAGES.ADD_TRANSACTION.AMOUNT_STALE,
             show_alert: true,
@@ -200,7 +167,7 @@ export function registerCallbackHandler(bot, deps) {
         logger.debug?.(`amount action=${amountAction.type} after="${nextDraft}"`);
         deps.amountUi.schedule(
           chatId,
-          () => renderAmountMessage(bot, deps, chatId),
+          () => renderAmountStep(bot, deps, chatId),
           {
             onError: (err) =>
               logger.warn(
@@ -219,7 +186,7 @@ export function registerCallbackHandler(bot, deps) {
       }
 
       const userState = deps.state.get(chatId);
-      if (!userState || userState.step !== "date") {
+      if (isStaleManualState(userState, "date", messageId)) {
         await answer({
           text: MESSAGES.ADD_TRANSACTION.DATE_STALE,
           show_alert: true,
@@ -229,14 +196,10 @@ export function registerCallbackHandler(bot, deps) {
 
       if (parsed.type === "nav") {
         await answer();
-        await editCalendarMessage(
-          bot,
-          deps,
-          chatId,
-          userState,
-          parsed.year,
-          parsed.month
-        );
+        await showCalendarStep(bot, deps, chatId, {
+          year: parsed.year,
+          month: parsed.month,
+        });
         return;
       }
 

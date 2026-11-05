@@ -4,61 +4,197 @@ import {
   formatDateToDisplay,
   createAccessMiddleware,
   removeInlineKeyboard,
+  safeDeleteMessage,
 } from "../utils.js";
 
 import { formatAmountDraft, formatAmountValue } from "../amount.js";
 import { buildCalendarText } from "../calendar.js";
 import {
   createAmountKeyboard,
-  createCancelableKeyboard,
+  createAddPickKeyboard,
   createCalendarKeyboard,
+  mainKeyboard,
   showMainKeyboard,
 } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
 
-export function buildAmountText(draft) {
+function getErrorDescription(err) {
+  return err?.response?.body?.description || err?.message || "";
+}
+
+function isNotModifiedError(err) {
+  return getErrorDescription(err).includes("message is not modified");
+}
+
+function isMessageNotFoundError(err) {
+  const description = getErrorDescription(err);
   return (
-    MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT +
-    "\n\n" +
-    MESSAGES.ADD_TRANSACTION.AMOUNT_SELECTED +
-    " " +
-    formatAmountDraft(draft)
+    description.includes("message to edit not found") ||
+    description.includes("message not found")
+  );
+}
+
+function buildAddCardText(data, options = {}) {
+  const lines = [];
+
+  if (options.title !== false) {
+    lines.push(MESSAGES.ADD_TRANSACTION.CARD_TITLE, "");
+  }
+
+  const amountText =
+    options.amountText ??
+    (Number.isFinite(data.amount) ? formatAmountValue(data.amount) : "—");
+
+  lines.push(
+    `${MESSAGES.AI.DATE_LABEL}: ${data.date || "—"}`,
+    `${MESSAGES.AI.AMOUNT_LABEL}: ${amountText}`,
+    `${MESSAGES.AI.CATEGORY_LABEL}: ${data.category || "—"}`,
+    `${MESSAGES.AI.WALLET_LABEL}: ${data.wallet || "—"}`,
+    `${MESSAGES.AI.NOTE_LABEL}: ${data.note || "—"}`
+  );
+
+  if (options.prompt) {
+    lines.push("", options.prompt);
+  }
+
+  if (options.error) {
+    lines.push("", options.error);
+  }
+
+  return lines.join("\n");
+}
+
+async function renderCardMessage(bot, deps, chatId, text, replyMarkup) {
+  const current = deps.state.get(chatId);
+
+  if (current?.cardMessageId) {
+    try {
+      await bot.editMessageText(text, {
+        chat_id: chatId,
+        message_id: current.cardMessageId,
+        reply_markup: replyMarkup,
+      });
+      return;
+    } catch (err) {
+      if (isNotModifiedError(err)) return;
+      if (!isMessageNotFoundError(err)) {
+        deps.logger?.warn?.(
+          `Не удалось обновить карточку транзакции: ${err.message}`
+        );
+        return;
+      }
+    }
+  }
+
+  const sent = await bot.sendMessage(chatId, text, {
+    reply_markup: replyMarkup,
+  });
+  deps.state.update(chatId, { cardMessageId: sent.message_id });
+}
+
+export async function showCalendarStep(bot, deps, chatId, options = {}) {
+  const now = new Date();
+  const year = options.year ?? now.getFullYear();
+  const month = options.month ?? now.getMonth() + 1;
+  const userState = deps.state.get(chatId);
+  const data = userState?.data || {};
+
+  const text = buildAddCardText(data, {
+    prompt:
+      MESSAGES.ADD_TRANSACTION.DATE_PROMPT +
+      "\n" +
+      buildCalendarText(year, month),
+    error: options.error,
+  });
+
+  await renderCardMessage(
+    bot,
+    deps,
+    chatId,
+    text,
+    createCalendarKeyboard(year, month).reply_markup
+  );
+}
+
+export async function renderAmountStep(bot, deps, chatId, error) {
+  const userState = deps.state.get(chatId);
+  if (!userState || userState.step !== "amount") return;
+
+  const draft = userState.amountDraft || "";
+  const text = buildAddCardText(userState.data, {
+    amountText: formatAmountDraft(draft) || "—",
+    prompt: MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT,
+    error,
+  });
+
+  await renderCardMessage(
+    bot,
+    deps,
+    chatId,
+    text,
+    createAmountKeyboard().reply_markup
   );
 }
 
 export async function startAmountStep(bot, deps, chatId) {
-  const userState = deps.state.get(chatId);
-  const draft = userState?.amountDraft || "";
-  const sent = await bot.sendMessage(
-    chatId,
-    buildAmountText(draft),
-    createAmountKeyboard()
-  );
-
-  deps.state.update(chatId, {
-    amountDraft: draft,
-    amountMessageId: sent.message_id,
-  });
+  await renderAmountStep(bot, deps, chatId);
 }
 
-export async function showCalendarStep(bot, deps, chatId) {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+export async function showCategoryStep(bot, deps, chatId, error) {
+  const userState = deps.state.get(chatId);
+  if (!userState || userState.step !== "category") return;
 
-  const sent = await bot.sendMessage(
+  const text = buildAddCardText(userState.data, {
+    prompt: MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
+    error,
+  });
+
+  await renderCardMessage(
+    bot,
+    deps,
     chatId,
-    MESSAGES.ADD_TRANSACTION.DATE_PROMPT +
-      "\n\n" +
-      buildCalendarText(year, month),
-    createCalendarKeyboard(year, month)
+    text,
+    createAddPickKeyboard("category", userState.categories).reply_markup
   );
+}
 
-  deps.state.update(chatId, { calendarMessageId: sent.message_id });
+export async function showWalletStep(bot, deps, chatId, error) {
+  const userState = deps.state.get(chatId);
+  if (!userState || userState.step !== "wallet") return;
+
+  const text = buildAddCardText(userState.data, {
+    prompt: MESSAGES.ADD_TRANSACTION.WALLET_PROMPT,
+    error,
+  });
+
+  await renderCardMessage(
+    bot,
+    deps,
+    chatId,
+    text,
+    createAddPickKeyboard("wallet", userState.wallets).reply_markup
+  );
+}
+
+export async function showNoteStep(bot, deps, chatId, error) {
+  const userState = deps.state.get(chatId);
+  if (!userState || userState.step !== "note") return;
+
+  const text = buildAddCardText(userState.data, {
+    prompt: MESSAGES.ADD_TRANSACTION.NOTE_PROMPT,
+    error,
+  });
+
+  await renderCardMessage(
+    bot,
+    deps,
+    chatId,
+    text,
+    createAddPickKeyboard("note", []).reply_markup
+  );
 }
 
 export async function completeDateStep(bot, deps, chatId, userState, date) {
-  const { logger } = deps;
   const display = formatDateToDisplay(date);
 
   deps.state.update(chatId, {
@@ -67,29 +203,13 @@ export async function completeDateStep(bot, deps, chatId, userState, date) {
       ...userState.data,
       date: display,
     },
+    amountDraft: "",
   });
 
-  if (userState.calendarMessageId) {
-    try {
-      await bot.editMessageText(
-        `${MESSAGES.ADD_TRANSACTION.DATE_SELECTED} ${display}`,
-        {
-          chat_id: chatId,
-          message_id: userState.calendarMessageId,
-          reply_markup: { inline_keyboard: [] },
-        }
-      );
-    } catch (err) {
-      logger.warn(`Не удалось обновить сообщение календаря: ${err.message}`);
-    }
-  }
-
-  await startAmountStep(bot, deps, chatId);
+  await renderAmountStep(bot, deps, chatId);
 }
 
 export async function completeAmountStep(bot, deps, chatId, userState, amount) {
-  const { logger } = deps;
-
   deps.state.update(chatId, {
     step: "category",
     data: {
@@ -103,29 +223,81 @@ export async function completeAmountStep(bot, deps, chatId, userState, amount) {
     await deps.amountUi.abort(chatId);
   }
 
-  const amountMessageId =
-    deps.state.get(chatId)?.amountMessageId || userState.amountMessageId;
+  await showCategoryStep(bot, deps, chatId);
+}
 
-  if (amountMessageId) {
-    try {
-      await bot.editMessageText(
-        `${MESSAGES.ADD_TRANSACTION.AMOUNT_SELECTED} ${formatAmountValue(amount)}`,
-        {
-          chat_id: chatId,
-          message_id: amountMessageId,
-          reply_markup: { inline_keyboard: [] },
-        }
-      );
-    } catch (err) {
-      logger.warn(`Не удалось обновить сообщение суммы: ${err.message}`);
+export async function selectCategory(bot, deps, chatId, userState, category) {
+  deps.state.update(chatId, {
+    step: "wallet",
+    data: {
+      ...userState.data,
+      category,
+    },
+  });
+
+  await showWalletStep(bot, deps, chatId);
+}
+
+export async function selectWallet(bot, deps, chatId, userState, wallet) {
+  deps.state.update(chatId, {
+    step: "note",
+    data: {
+      ...userState.data,
+      wallet,
+    },
+  });
+
+  await showNoteStep(bot, deps, chatId);
+}
+
+async function sendFinalMessage(bot, deps, chatId, text, cardMessageId) {
+  await bot.sendMessage(chatId, text, mainKeyboard);
+  await safeDeleteMessage(bot, deps.logger, chatId, cardMessageId);
+}
+
+export async function completeNoteStep(
+  bot,
+  deps,
+  chatId,
+  userState,
+  note,
+  userMessageId
+) {
+  const { sheets, logger } = deps;
+  const transactionData = {
+    ...userState.data,
+    note,
+  };
+
+  try {
+    await sheets.appendTransaction(transactionData);
+    logger.info("Добавлена транзакция", transactionData);
+
+    await safeDeleteMessage(bot, logger, chatId, userMessageId);
+
+    const summary = buildAddCardText(transactionData, { title: false });
+    deps.state.del(chatId);
+    await sendFinalMessage(
+      bot,
+      deps,
+      chatId,
+      `${summary}\n\n${MESSAGES.ADD_TRANSACTION.SUCCESS}`,
+      userState.cardMessageId
+    );
+  } catch (err) {
+    logger.error("Ошибка в сценарии /add", err);
+    if (deps.amountUi) {
+      await deps.amountUi.abort(chatId);
     }
+    deps.state.del(chatId);
+    await sendFinalMessage(
+      bot,
+      deps,
+      chatId,
+      MESSAGES.ADD_TRANSACTION.ERROR,
+      userState.cardMessageId
+    );
   }
-
-  await bot.sendMessage(
-    chatId,
-    MESSAGES.ADD_TRANSACTION.CATEGORY_PROMPT,
-    createCancelableKeyboard(userState.categories)
-  );
 }
 
 // Добавляем экспорт функции для обработки команды /add
@@ -147,6 +319,14 @@ export async function handleAddCommand(bot, deps, msg) {
       await deps.amountUi.abort(chatId);
     }
     if (existingState) {
+      if (existingState.cardMessageId) {
+        await safeDeleteMessage(
+          bot,
+          logger,
+          chatId,
+          existingState.cardMessageId
+        );
+      }
       await removeInlineKeyboard(
         bot,
         logger,
@@ -168,6 +348,7 @@ export async function handleAddCommand(bot, deps, msg) {
       data: {},
       categories,
       wallets,
+      amountDraft: "",
     });
 
     await showCalendarStep(bot, deps, chatId);
@@ -180,7 +361,7 @@ export async function handleAddCommand(bot, deps, msg) {
 
 export function registerAddHandler(bot, deps) {
   // Обработчик команды /add
-  const { sheets, state, logger } = deps;
+  const { state, logger } = deps;
   const withAccess = createAccessMiddleware(bot, deps);
   bot.onText(
     /^\/add$/,
@@ -217,93 +398,66 @@ export function registerAddHandler(bot, deps) {
       if (userState.step === "date") {
         const date = parseDateDDMMYYYY(text);
         if (!date) {
-          await bot.sendMessage(
-            chatId,
-            MESSAGES.ADD_TRANSACTION.DATE_INVALID
-          );
+          await showCalendarStep(bot, deps, chatId, {
+            error: MESSAGES.ADD_TRANSACTION.DATE_INVALID,
+          });
           return;
         }
+        await safeDeleteMessage(bot, logger, chatId, msg.message_id);
         await completeDateStep(bot, deps, chatId, userState, date);
       } else if (userState.step === "amount") {
         const amount = parseAmount(text);
         if (Number.isNaN(amount) || amount === 0) {
-          await bot.sendMessage(
+          await renderAmountStep(
+            bot,
+            deps,
             chatId,
             MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID
           );
           return;
         }
 
+        await safeDeleteMessage(bot, logger, chatId, msg.message_id);
         await completeAmountStep(bot, deps, chatId, userState, amount);
       } else if (userState.step === "category") {
         // Проверяем, что выбрана существующая категория
         if (!userState.categories.includes(text)) {
-          await bot.sendMessage(
+          await showCategoryStep(
+            bot,
+            deps,
             chatId,
-            MESSAGES.ADD_TRANSACTION.CATEGORY_INVALID,
-            createCancelableKeyboard(userState.categories)
+            MESSAGES.ADD_TRANSACTION.CATEGORY_INVALID
           );
           return;
         }
 
-        state.update(chatId, {
-          step: "wallet",
-          data: {
-            ...userState.data,
-            category: text,
-          },
-        });
-
-        // Создаем клавиатуру с кошельками из таблицы и кнопкой отмены
-        await bot.sendMessage(
-          chatId,
-          MESSAGES.ADD_TRANSACTION.WALLET_PROMPT,
-          createCancelableKeyboard(userState.wallets)
-        );
+        await safeDeleteMessage(bot, logger, chatId, msg.message_id);
+        await selectCategory(bot, deps, chatId, userState, text);
       } else if (userState.step === "wallet") {
         // Проверяем, что выбран существующий кошелек
         if (!userState.wallets.includes(text)) {
-          await bot.sendMessage(
+          await showWalletStep(
+            bot,
+            deps,
             chatId,
-            MESSAGES.ADD_TRANSACTION.WALLET_INVALID,
-            createCancelableKeyboard(userState.wallets)
+            MESSAGES.ADD_TRANSACTION.WALLET_INVALID
           );
           return;
         }
 
-        state.update(chatId, {
-          step: "note",
-          data: {
-            ...userState.data,
-            wallet: text,
-          },
-        });
-
-        // Убираем клавиатуру
-        await bot.sendMessage(
-          chatId,
-          MESSAGES.ADD_TRANSACTION.NOTE_PROMPT,
-          createCancelableKeyboard([])
-        );
+        await safeDeleteMessage(bot, logger, chatId, msg.message_id);
+        await selectWallet(bot, deps, chatId, userState, text);
       } else if (userState.step === "note") {
         // Если пользователь отправил "-", сохраняем пустую строку
         const note = text === "-" ? "" : text;
-
-        // Создаем полные данные транзакции
-        const transactionData = {
-          ...userState.data,
-          note: note,
-        };
-
-        // Всё собрано — сохраняем
-        await sheets.appendTransaction(transactionData);
-        logger.info("Добавлена транзакция", transactionData);
-
-        await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.SUCCESS);
-
-        // Чистим state и возвращаем основную клавиатуру
-        state.del(chatId);
-        await showMainKeyboard(bot, chatId, MESSAGES.COMMON.WHAT_NEXT);
+        await completeNoteStep(
+          bot,
+          deps,
+          chatId,
+          userState,
+          note,
+          msg.message_id
+        );
       }
     } catch (err) {
       logger.error("Ошибка в сценарии /add", err);

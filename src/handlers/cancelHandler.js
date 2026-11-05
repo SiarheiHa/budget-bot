@@ -1,6 +1,6 @@
-import { showMainKeyboard } from "../keyboards.js";
+import { mainKeyboard, showMainKeyboard } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
-import { removeInlineKeyboard } from "../utils.js";
+import { removeInlineKeyboard, safeDeleteMessage } from "../utils.js";
 
 export async function handleCancel(bot, deps, msg) {
   const { state, logger, amountUi } = deps;
@@ -14,6 +14,21 @@ export async function handleCancel(bot, deps, msg) {
     state.del(chatId);
     if (amountUi) {
       await amountUi.abort(chatId);
+    }
+
+    if (currentState.cardMessageId) {
+      await bot.sendMessage(
+        chatId,
+        MESSAGES.COMMON.CANCELLED,
+        mainKeyboard
+      );
+      await safeDeleteMessage(
+        bot,
+        logger,
+        chatId,
+        currentState.cardMessageId
+      );
+      return;
     }
 
     await removeInlineKeyboard(

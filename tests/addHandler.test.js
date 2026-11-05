@@ -16,7 +16,11 @@ async function startAdd(bot, deps) {
   return deps.store.get("1");
 }
 
-test("addHandler: /add загружает данные и показывает календарь", async () => {
+function editedMessageIds(bot) {
+  return new Set(bot.edits.map((edit) => edit.form.message_id));
+}
+
+test("addHandler: /add создаёт одну карточку с календарём", async () => {
   const bot = createBot();
   const deps = createDeps();
   registerAddHandler(bot, deps);
@@ -27,30 +31,51 @@ test("addHandler: /add загружает данные и показывает �
   assert.equal(state.step, "date");
   assert.deepEqual(state.categories, ["Еда", "Транспорт"]);
   assert.deepEqual(state.wallets, ["Наличные", "Карта"]);
-  assert.ok(state.calendarMessageId);
-  assert.match(bot.sent.at(-1).text, /Выберите дату операции/);
-  assert.ok(Array.isArray(bot.sent.at(-1).options.reply_markup.inline_keyboard));
+  assert.equal(state.amountDraft, "");
+  assert.ok(state.cardMessageId);
+  assert.equal(state.calendarMessageId, undefined);
+  assert.equal(state.amountMessageId, undefined);
+
+  assert.equal(bot.sent.length, 1);
+  const card = bot.sent[0];
+  assert.match(card.text, /Новая транзакция/);
+  assert.match(card.text, /Выберите дату операции/);
+  assert.ok(Array.isArray(card.options.reply_markup.inline_keyboard));
 });
 
-test("addHandler: полный сценарий сохраняет транзакцию", async () => {
+test("addHandler: полный сценарий редактирует одну карточку и оставляет один итог", async () => {
   const bot = createBot();
   const deps = createDeps();
   registerAddHandler(bot, deps);
 
   await startAdd(bot, deps);
-  await emitMessage(bot, DATE);
+  const cardId = deps.store.get("1").cardMessageId;
+
+  const dateMessage = await emitMessage(bot, DATE);
   assert.equal(deps.store.get("1").step, "amount");
+  assert.ok(
+    bot.deleted.some((item) => item.messageId === dateMessage.message_id)
+  );
 
-  await emitMessage(bot, "123,45");
+  const amountMessage = await emitMessage(bot, "123,45");
   assert.equal(deps.store.get("1").step, "category");
+  assert.ok(
+    bot.deleted.some((item) => item.messageId === amountMessage.message_id)
+  );
 
-  await emitMessage(bot, "Еда");
+  const categoryMessage = await emitMessage(bot, "Еда");
   assert.equal(deps.store.get("1").step, "wallet");
+  assert.ok(
+    bot.deleted.some((item) => item.messageId === categoryMessage.message_id)
+  );
 
-  await emitMessage(bot, "Наличные");
+  const walletMessage = await emitMessage(bot, "Наличные");
   assert.equal(deps.store.get("1").step, "note");
+  assert.ok(
+    bot.deleted.some((item) => item.messageId === walletMessage.message_id)
+  );
 
-  await emitMessage(bot, "-");
+  const noteMessage = await emitMessage(bot, "-");
 
   assert.deepEqual(deps.transactions, [
     {
@@ -62,16 +87,25 @@ test("addHandler: полный сценарий сохраняет транза�
     },
   ]);
   assert.equal(deps.store.has("1"), false);
+
+  assert.deepEqual([...editedMessageIds(bot)], [cardId]);
+  assert.ok(bot.deleted.some((item) => item.messageId === cardId));
   assert.ok(
-    bot.sent.some((message) => message.text === MESSAGES.ADD_TRANSACTION.SUCCESS)
+    bot.deleted.some((item) => item.messageId === noteMessage.message_id)
   );
-  assert.ok(
-    bot.sent.at(-1).options.reply_markup.keyboard,
-    "после успеха возвращается главное меню"
-  );
+
+  assert.equal(bot.sent.length, 2);
+  const finalMessage = bot.sent.at(-1);
+  assert.match(finalMessage.text, /Дата: 13\.09\.2025/);
+  assert.match(finalMessage.text, /Сумма: 123,45/);
+  assert.match(finalMessage.text, /Категория: Еда/);
+  assert.match(finalMessage.text, /Кошелёк: Наличные/);
+  assert.match(finalMessage.text, /Примечание: —/);
+  assert.match(finalMessage.text, /Запись добавлена в таблицу/);
+  assert.ok(finalMessage.options.reply_markup.keyboard);
 });
 
-test("addHandler: невалидная дата не двигает диалог", async () => {
+test("addHandler: невалидная дата не двигает диалог и показывает ошибку в карточке", async () => {
   const bot = createBot();
   const deps = createDeps();
   registerAddHandler(bot, deps);
@@ -80,10 +114,11 @@ test("addHandler: невалидная дата не двигает диалог
   await emitMessage(bot, "не дата");
 
   assert.equal(deps.store.get("1").step, "date");
-  assert.equal(bot.sent.at(-1).text, MESSAGES.ADD_TRANSACTION.DATE_INVALID);
+  assert.match(bot.edits.at(-1).text, /Неверный формат даты/);
+  assert.equal(bot.deleted.length, 0);
 });
 
-test("addHandler: невалидная сумма не двигает диалог", async () => {
+test("addHandler: невалидная сумма не двигает диалог и показывает ошибку в карточке", async () => {
   const bot = createBot();
   const deps = createDeps();
   registerAddHandler(bot, deps);
@@ -93,14 +128,14 @@ test("addHandler: невалидная сумма не двигает диало
 
   await emitMessage(bot, "0");
   assert.equal(deps.store.get("1").step, "amount");
-  assert.equal(bot.sent.at(-1).text, MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID);
+  assert.match(bot.edits.at(-1).text, /Неверная сумма/);
 
   await emitMessage(bot, "abc");
   assert.equal(deps.store.get("1").step, "amount");
-  assert.equal(bot.sent.at(-1).text, MESSAGES.ADD_TRANSACTION.AMOUNT_INVALID);
+  assert.match(bot.edits.at(-1).text, /Неверная сумма/);
 });
 
-test("addHandler: невалидная категория и кошелёк предлагают список", async () => {
+test("addHandler: невалидные категория и кошелёк показывают ошибку в карточке", async () => {
   const bot = createBot();
   const deps = createDeps();
   registerAddHandler(bot, deps);
@@ -111,15 +146,12 @@ test("addHandler: невалидная категория и кошелёк пр
 
   await emitMessage(bot, "Не еда");
   assert.equal(deps.store.get("1").step, "category");
-  assert.equal(
-    bot.sent.at(-1).text,
-    MESSAGES.ADD_TRANSACTION.CATEGORY_INVALID
-  );
+  assert.match(bot.edits.at(-1).text, /выберите категорию из предложенных/);
 
   await emitMessage(bot, "Еда");
   await emitMessage(bot, "Не кошелёк");
   assert.equal(deps.store.get("1").step, "wallet");
-  assert.equal(bot.sent.at(-1).text, MESSAGES.ADD_TRANSACTION.WALLET_INVALID);
+  assert.match(bot.edits.at(-1).text, /выберите кошелёк из предложенных/);
 });
 
 test("addHandler: без активного state обычные сообщения игнорируются", async () => {
@@ -164,6 +196,7 @@ test("addHandler: ошибка сохранения очищает state и во
   registerAddHandler(bot, deps);
 
   await startAdd(bot, deps);
+  const cardId = deps.store.get("1").cardMessageId;
   await emitMessage(bot, DATE);
   await emitMessage(bot, "100");
   await emitMessage(bot, "Еда");
@@ -175,6 +208,21 @@ test("addHandler: ошибка сохранения очищает state и во
     bot.sent.some((message) => message.text === MESSAGES.ADD_TRANSACTION.ERROR)
   );
   assert.ok(bot.sent.at(-1).options.reply_markup.keyboard);
+  assert.ok(bot.deleted.some((item) => item.messageId === cardId));
+});
+
+test("addHandler: повторный /add удаляет старую карточку", async () => {
+  const bot = createBot();
+  const deps = createDeps();
+  registerAddHandler(bot, deps);
+
+  await startAdd(bot, deps);
+  const oldCardId = deps.store.get("1").cardMessageId;
+
+  await startAdd(bot, deps);
+
+  assert.ok(bot.deleted.some((item) => item.messageId === oldCardId));
+  assert.notEqual(deps.store.get("1").cardMessageId, oldCardId);
 });
 
 test("addHandler: ошибка загрузки справочников показывает INIT_ERROR", async () => {
