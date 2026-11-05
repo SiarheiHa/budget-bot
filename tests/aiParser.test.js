@@ -71,7 +71,7 @@ test("aiParser: успешно извлекает транзакцию и отп
   assert.equal(result.draft.category, "Еда");
   assert.equal(result.draft.wallet, "Наличные");
   assert.equal(result.draft.note, "кофе");
-  assert.equal(result.draft.type, "expense");
+  assert.equal("type" in result.draft, false);
   assert.deepEqual(
     [
       result.draft.date.getFullYear(),
@@ -87,6 +87,7 @@ test("aiParser: успешно извлекает транзакцию и отп
 
   const body = JSON.parse(calls[0].init.body);
   assert.equal(body.response_format.type, "json_schema");
+  assert.equal(body.response_format.json_schema.properties.type, undefined);
   assert.equal(body.temperature, 0);
   assert.match(body.messages[0].content, /Еда/);
   assert.match(body.messages[0].content, /Наличные/);

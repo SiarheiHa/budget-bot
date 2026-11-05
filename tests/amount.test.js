@@ -82,6 +82,15 @@ test("amount: parseAmountCallback", () => {
   assert.equal(parseAmountCallback("cal:today"), null);
   assert.equal(parseAmountCallback("v1:amt:d:55"), null);
   assert.equal(parseAmountCallback(null), null);
+
+  assert.deepEqual(parseAmountCallback("ai:amt:d:7", "ai:amt"), {
+    type: "digit",
+    value: "7",
+  });
+  assert.deepEqual(parseAmountCallback("ai:amt:back", "ai:amt"), {
+    type: "backspace",
+  });
+  assert.equal(parseAmountCallback("v1:amt:d:7", "ai:amt"), null);
 });
 
 test("amount: форматирование черновика", () => {

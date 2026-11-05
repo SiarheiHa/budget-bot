@@ -5,6 +5,7 @@ import {
   parseNaturalDate,
   parseAmount,
   formatDateToDisplay,
+  normalizeCategoryType,
 } from '../src/utils.js';
 
 test('parseDateDDMMYYYY: full date DD.MM.YYYY', () => {
@@ -94,4 +95,16 @@ test('parseNaturalDate: невалидные значения', () => {
   assert.equal(parseNaturalDate('9 смородины', NOW), null);
   assert.equal(parseNaturalDate('не дата', NOW), null);
   assert.equal(parseNaturalDate('', NOW), null);
+});
+
+test('normalizeCategoryType: русские и английские значения', () => {
+  assert.equal(normalizeCategoryType(' Доход '), 'income');
+  assert.equal(normalizeCategoryType('income'), 'income');
+  assert.equal(normalizeCategoryType('Расход'), 'expense');
+  assert.equal(normalizeCategoryType('expense'), 'expense');
+  assert.equal(normalizeCategoryType('перевод'), 'transfer');
+  assert.equal(normalizeCategoryType('transfer'), 'transfer');
+  assert.equal(normalizeCategoryType('прочее'), null);
+  assert.equal(normalizeCategoryType(''), null);
+  assert.equal(normalizeCategoryType(null), null);
 });

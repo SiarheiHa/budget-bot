@@ -12,10 +12,6 @@ const JSON_SCHEMA = {
   type: "object",
   properties: {
     is_transaction: { type: "boolean" },
-    type: {
-      type: "string",
-      enum: ["expense", "income", "unknown"],
-    },
     amount: { type: "number" },
     category: { type: "string" },
     wallet: { type: "string" },
@@ -24,7 +20,6 @@ const JSON_SCHEMA = {
   },
   required: [
     "is_transaction",
-    "type",
     "amount",
     "category",
     "wallet",
@@ -198,7 +193,6 @@ export function createAiParser({ config, logger, fetchImpl } = {}) {
       return {
         ok: true,
         draft: {
-          type: data.type === "income" ? "income" : "expense",
           amount,
           category: matchFromList(data.category, categories),
           wallet: matchFromList(data.wallet, wallets),

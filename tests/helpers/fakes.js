@@ -60,7 +60,10 @@ export function createDeps(initialState = {}, overrides = {}) {
       debug() {},
     },
     sheets: {
-      getCategories: async () => ["Еда", "Транспорт"],
+      getCategories: async () => [
+        { name: "Еда", type: "expense" },
+        { name: "Транспорт", type: "expense" },
+      ],
       getWallets: async () => ["Наличные", "Карта"],
       getBalances: async () => [
         { name: "Наличные", balance: 100, currency: "RUB" },

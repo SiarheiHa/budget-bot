@@ -95,16 +95,21 @@ export function applyAmountAction(draft, action) {
   }
 }
 
-export function parseAmountCallback(data) {
+export function parseAmountCallback(data, prefix = "v1:amt") {
   if (typeof data !== "string") return null;
 
-  if (data === "v1:amt:sep") return { type: "separator" };
-  if (data === "v1:amt:back") return { type: "backspace" };
-  if (data === "v1:amt:clear") return { type: "clear" };
-  if (data === "v1:amt:sign") return { type: "sign" };
-  if (data === "v1:amt:ok") return { type: "confirm" };
+  const prefixWithSeparator = `${prefix}:`;
+  if (!data.startsWith(prefixWithSeparator)) return null;
 
-  const digitMatch = /^v1:amt:d:(\d)$/.exec(data);
+  const value = data.slice(prefixWithSeparator.length);
+
+  if (value === "sep") return { type: "separator" };
+  if (value === "back") return { type: "backspace" };
+  if (value === "clear") return { type: "clear" };
+  if (value === "sign") return { type: "sign" };
+  if (value === "ok") return { type: "confirm" };
+
+  const digitMatch = /^d:(\d)$/.exec(value);
   if (digitMatch) return { type: "digit", value: digitMatch[1] };
 
   return null;

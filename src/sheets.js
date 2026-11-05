@@ -1,9 +1,10 @@
 import { config } from "./config.js";
 import { google } from "googleapis";
+import { normalizeCategoryType } from "./utils.js";
 
 // Константы диапазонов
 const RANGES = {
-  CATEGORIES: "Categories!A2:A50",
+  CATEGORIES: "Categories!A2:B50",
   WALLETS: "Wallets!B2:B20",
   WALLETS_FULL: "Wallets!B2:D",
   TRANSACTIONS: "Transactions!A:G",
@@ -74,11 +75,26 @@ async function getValuesFromRange(range) {
 }
 
 /**
- * Возвращает массив категорий из диапазона Categories!A2:A50
- * @returns {Promise<Array<string>>}
+ * Возвращает категории из диапазона Categories!A2:B50
+ * @returns {Promise<Array<{name: string, type: string|null}>>}
  */
 async function getCategories() {
-  return getValuesFromRange(RANGES.CATEGORIES);
+  const rows = await getSheetValues(RANGES.CATEGORIES);
+
+  return rows
+    .map((row) => {
+      const name = String(row?.[0] ?? "").trim();
+      if (!name) return null;
+
+      const rawType = row?.[1];
+      const type = normalizeCategoryType(rawType);
+      if (String(rawType ?? "").trim() && !type) {
+        console.warn(`Неизвестный тип категории "${name}": ${rawType}`);
+      }
+
+      return { name, type };
+    })
+    .filter(Boolean);
 }
 
 /**

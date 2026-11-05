@@ -93,6 +93,16 @@ test("parseCalendarCallback: навигация, дни и быстрые кно
   assert.equal(parseCalendarCallback("cal:nav:2026-13"), null);
   assert.equal(parseCalendarCallback("cal:day:2026-02-30"), null);
   assert.equal(parseCalendarCallback("unknown"), null);
+
+  assert.deepEqual(parseCalendarCallback("ai:cal:today", "ai:cal"), {
+    type: "today",
+  });
+  assert.deepEqual(parseCalendarCallback("ai:cal:nav:2026-09", "ai:cal"), {
+    type: "nav",
+    year: 2026,
+    month: 9,
+  });
+  assert.equal(parseCalendarCallback("cal:toda", "ai:cal"), null);
 });
 
 test("createCalendarKeyboard: навигация, дни и кнопки", () => {

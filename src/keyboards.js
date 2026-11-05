@@ -34,11 +34,19 @@ export function createCancelableKeyboard(items) {
   };
 }
 
-export function createAmountKeyboard() {
+export function createAmountKeyboard(options = {}) {
+  const prefix = options.prefix || "v1:amt";
+  const allowSign = options.allowSign !== false;
+  const footer = options.footer || [];
   const digit = (value) => ({
     text: value,
-    callback_data: `v1:amt:d:${value}`,
+    callback_data: `${prefix}:d:${value}`,
   });
+
+  const secondRow = [digit("4"), digit("5"), digit("6")];
+  if (allowSign) {
+    secondRow.push({ text: "±", callback_data: `${prefix}:sign` });
+  }
 
   return {
     reply_markup: {
@@ -47,25 +55,21 @@ export function createAmountKeyboard() {
           digit("1"),
           digit("2"),
           digit("3"),
-          { text: "⌫", callback_data: "v1:amt:back" },
+          { text: "⌫", callback_data: `${prefix}:back` },
         ],
-        [
-          digit("4"),
-          digit("5"),
-          digit("6"),
-          { text: "±", callback_data: "v1:amt:sign" },
-        ],
+        secondRow,
         [
           digit("7"),
           digit("8"),
           digit("9"),
-          { text: ",", callback_data: "v1:amt:sep" },
+          { text: ",", callback_data: `${prefix}:sep` },
         ],
         [
-          { text: "Сброс", callback_data: "v1:amt:clear" },
+          { text: "Сброс", callback_data: `${prefix}:clear` },
           digit("0"),
-          { text: "✅ Готово", callback_data: "v1:amt:ok" },
+          { text: "✅ Готово", callback_data: `${prefix}:ok` },
         ],
+        ...footer,
       ],
     },
   };
@@ -85,24 +89,87 @@ export function createAiConfirmKeyboard() {
   };
 }
 
-export function createCalendarKeyboard(year, month) {
+export function createAiCardKeyboard() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "Сумма", callback_data: "ai:field:amount" },
+          { text: "Дата", callback_data: "ai:field:date" },
+        ],
+        [
+          { text: "Категория", callback_data: "ai:field:category" },
+          { text: "Кошелёк", callback_data: "ai:field:wallet" },
+        ],
+        [{ text: "Примечание", callback_data: "ai:field:note" }],
+        [
+          { text: "✅ Сохранить", callback_data: "ai:confirm" },
+          { text: "❌ Отмена", callback_data: "ai:cancel" },
+        ],
+      ],
+    },
+  };
+}
+
+export function createAiPickKeyboard(field, items = []) {
+  const rows = items.map((item, index) => [
+    {
+      text: item,
+      callback_data: `ai:pick:${field}:${index}`,
+    },
+  ]);
+
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        ...rows,
+        [
+          { text: "Назад", callback_data: "ai:back" },
+          { text: "❌ Отмена", callback_data: "ai:cancel" },
+        ],
+      ],
+    },
+  };
+}
+
+export function createAiNoteKeyboard() {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "Назад", callback_data: "ai:back" },
+          { text: "❌ Отмена", callback_data: "ai:cancel" },
+        ],
+      ],
+    },
+  };
+}
+
+export function createCalendarKeyboard(year, month, options = {}) {
+  const prefix = options.prefix || "cal";
+  const footer = options.footer || [
+    [{ text: "❌ Отмена", callback_data: "v1:cancel" }],
+  ];
   const previous = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
 
   const navigationRow = [
     {
       text: "«",
-      callback_data: `cal:nav:${formatIsoMonth(previous.year, previous.month)}`,
+      callback_data: `${prefix}:nav:${formatIsoMonth(
+        previous.year,
+        previous.month
+      )}`,
     },
     {
       text: "»",
-      callback_data: `cal:nav:${formatIsoMonth(next.year, next.month)}`,
+      callback_data: `${prefix}:nav:${formatIsoMonth(next.year, next.month)}`,
     },
   ];
 
   const weekdayRow = WEEKDAYS.map((label) => ({
     text: label,
-    callback_data: "cal:noop",
+    callback_data: `${prefix}:noop`,
   }));
 
   const weekRows = buildMonthGrid(year, month).map((week) =>
@@ -110,13 +177,13 @@ export function createCalendarKeyboard(year, month) {
       cell
         ? {
             text: String(cell.day),
-            callback_data: `cal:day:${formatIsoDate(
+            callback_data: `${prefix}:day:${formatIsoDate(
               cell.year,
               cell.month,
               cell.day
             )}`,
           }
-        : { text: " ", callback_data: "cal:noop" }
+        : { text: " ", callback_data: `${prefix}:noop` }
     )
   );
 
@@ -127,10 +194,10 @@ export function createCalendarKeyboard(year, month) {
         weekdayRow,
         ...weekRows,
         [
-          { text: "Сегодня", callback_data: "cal:today" },
-          { text: "Вчера", callback_data: "cal:yesterday" },
+          { text: "Сегодня", callback_data: `${prefix}:today` },
+          { text: "Вчера", callback_data: `${prefix}:yesterday` },
         ],
-        [{ text: "❌ Отмена", callback_data: "v1:cancel" }],
+        ...footer,
       ],
     },
   };

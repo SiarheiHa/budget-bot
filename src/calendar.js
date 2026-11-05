@@ -77,14 +77,19 @@ export function buildCalendarText(year, month) {
   return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
-export function parseCalendarCallback(data) {
+export function parseCalendarCallback(data, prefix = "cal") {
   if (typeof data !== "string") return null;
 
-  if (data === "cal:noop") return { type: "noop" };
-  if (data === "cal:today") return { type: "today" };
-  if (data === "cal:yesterday") return { type: "yesterday" };
+  const prefixWithSeparator = `${prefix}:`;
+  if (!data.startsWith(prefixWithSeparator)) return null;
 
-  const navMatch = /^cal:nav:(\d{4})-(\d{2})$/.exec(data);
+  const value = data.slice(prefixWithSeparator.length);
+
+  if (value === "noop") return { type: "noop" };
+  if (value === "today") return { type: "today" };
+  if (value === "yesterday") return { type: "yesterday" };
+
+  const navMatch = /^nav:(\d{4})-(\d{2})$/.exec(value);
   if (navMatch) {
     const year = Number(navMatch[1]);
     const month = Number(navMatch[2]);
@@ -92,11 +97,20 @@ export function parseCalendarCallback(data) {
     return null;
   }
 
-  const dayMatch = /^cal:day:(\d{4})-(\d{2})-(\d{2})$/.exec(data);
+  const dayMatch = /^day:(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (dayMatch) {
-    const date = parseIsoDate(data.slice("cal:day:".length));
+    const date = parseIsoDate(`${dayMatch[1]}-${dayMatch[2]}-${dayMatch[3]}`);
     if (date) return { type: "day", ...date };
   }
 
   return null;
+}
+
+export function resolveCalendarDate(parsed, now = new Date()) {
+  if (parsed.type === "today" || parsed.type === "yesterday") {
+    const dayOffset = parsed.type === "yesterday" ? -1 : 0;
+    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
+  }
+
+  return new Date(parsed.year, parsed.month - 1, parsed.day);
 }

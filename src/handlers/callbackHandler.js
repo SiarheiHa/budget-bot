@@ -1,5 +1,9 @@
 import { applyAmountAction, parseAmountCallback } from "../amount.js";
-import { buildCalendarText, parseCalendarCallback } from "../calendar.js";
+import {
+  buildCalendarText,
+  parseCalendarCallback,
+  resolveCalendarDate,
+} from "../calendar.js";
 import { createAmountKeyboard, createCalendarKeyboard } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
 import { checkAccess, parseAmount } from "../utils.js";
@@ -9,17 +13,7 @@ import {
   completeDateStep,
 } from "./addHandler.js";
 import { handleCancel } from "./cancelHandler.js";
-import { confirmAiDraft, editAiDraft } from "./aiHandler.js";
-
-function resolveDate(parsed) {
-  if (parsed.type === "today" || parsed.type === "yesterday") {
-    const now = new Date();
-    const dayOffset = parsed.type === "yesterday" ? -1 : 0;
-    return new Date(now.getFullYear(), now.getMonth(), now.getDate() + dayOffset);
-  }
-
-  return new Date(parsed.year, parsed.month - 1, parsed.day);
-}
+import { handleAiCallback } from "./aiHandler.js";
 
 function isNotModifiedError(err) {
   const description = err?.response?.body?.description || err?.message || "";
@@ -123,7 +117,7 @@ export function registerCallbackHandler(bot, deps) {
         return;
       }
 
-      if (data === "v1:cancel" || data === "ai:cancel") {
+      if (data === "v1:cancel") {
         logger.debug?.(`cancel chat=${chatId}`);
         const cancellation = handleCancel(bot, deps, { chat: { id: chatId } });
         await answer();
@@ -131,20 +125,19 @@ export function registerCallbackHandler(bot, deps) {
         return;
       }
 
-      if (data === "ai:confirm") {
-        const result = await confirmAiDraft(bot, deps, chatId);
-        await answer(
-          result === "stale"
-            ? { text: MESSAGES.AI.STALE, show_alert: true }
-            : undefined
+      if (data.startsWith("ai:")) {
+        const result = await handleAiCallback(
+          bot,
+          deps,
+          chatId,
+          data,
+          query.message?.message_id
         );
-        return;
-      }
-
-      if (data === "ai:edit") {
-        const handled = await editAiDraft(bot, deps, chatId);
+        const alertText = result?.stale
+          ? MESSAGES.AI.STALE
+          : result?.alert;
         await answer(
-          handled ? undefined : { text: MESSAGES.AI.STALE, show_alert: true }
+          alertText ? { text: alertText, show_alert: true } : undefined
         );
         return;
       }
@@ -247,7 +240,7 @@ export function registerCallbackHandler(bot, deps) {
         return;
       }
 
-      const date = resolveDate(parsed);
+      const date = resolveCalendarDate(parsed);
       await answer();
       await completeDateStep(bot, deps, chatId, userState, date);
     } catch (err) {

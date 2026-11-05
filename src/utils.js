@@ -271,6 +271,17 @@ export function parseAmount(text) {
   return Number.isFinite(num) ? num : NaN;
 }
 
+export function normalizeCategoryType(value) {
+  const normalized = String(value ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (normalized === "доход" || normalized === "income") return "income";
+  if (normalized === "расход" || normalized === "expense") return "expense";
+  if (normalized === "перевод" || normalized === "transfer") return "transfer";
+  return null;
+}
+
 // функция проверки доступа
 export function checkAccess(chatId, config) {
   // если список пуст и надо разрешить всем, то раскоментировать строку ниже
