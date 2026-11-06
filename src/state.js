@@ -41,14 +41,13 @@ export function getUserState(userId, opts = {}) {
     // Отправляем уведомление пользователю при истечении сессии
     if (opts.bot && opts.chatId && opts.messages) {
       try {
-        const { showMainKeyboard } = opts.keyboards || {};
+        const { mainKeyboard } = opts.keyboards || {};
         opts.bot
-          .sendMessage(opts.chatId, opts.messages.COMMON.SESSION_EXPIRED)
-          .then(() => {
-            if (typeof showMainKeyboard === "function") {
-              return showMainKeyboard(opts.bot, opts.chatId);
-            }
-          })
+          .sendMessage(
+            opts.chatId,
+            opts.messages.COMMON.SESSION_EXPIRED,
+            mainKeyboard
+          )
           .catch(() => {});
       } catch {
         // Игнорируем ошибки отправки уведомления

@@ -328,6 +328,8 @@ export async function handleAddCommand(bot, deps, msg) {
   logger.info(`/add от пользователя ${chatId}`);
 
   try {
+    await safeDeleteMessage(bot, logger, chatId, msg.message_id);
+
     // Получаем категории и кошельки из таблицы
     const [categoryRows, wallets] = await Promise.all([
       sheets.getCategories(),
@@ -375,8 +377,11 @@ export async function handleAddCommand(bot, deps, msg) {
     await showCalendarStep(bot, deps, chatId);
   } catch (err) {
     logger.error("Ошибка при получении категорий/кошельков", err);
-    await bot.sendMessage(chatId, MESSAGES.ADD_TRANSACTION.INIT_ERROR);
-    await showMainKeyboard(bot, chatId);
+    await bot.sendMessage(
+      chatId,
+      MESSAGES.ADD_TRANSACTION.INIT_ERROR,
+      mainKeyboard
+    );
   }
 }
 
@@ -395,12 +400,11 @@ export function registerAddHandler(bot, deps) {
   bot.on("message", async (msg) => {
     const chatId = msg.chat.id;
     const { MESSAGES } = await import("../messages.js");
-    const { showMainKeyboard } = await import("../keyboards.js");
     const userState = state.get(chatId, {
       bot,
       chatId,
       messages: { COMMON: MESSAGES.COMMON },
-      keyboards: { showMainKeyboard },
+      keyboards: { mainKeyboard },
     });
 
     // Если пользователь не в процессе добавления или это команда - выходим

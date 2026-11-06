@@ -52,19 +52,17 @@ test("state: update продлевает TTL", (t) => {
   clearUserState("state-refresh");
 });
 
-test("state: при истечении отправляет уведомление и меню", async (t) => {
+test("state: при истечении отправляет одно уведомление с меню", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: 0 });
 
   const sent = [];
   const bot = {
-    sendMessage: async (chatId, text) => {
-      sent.push({ chatId, text });
+    sendMessage: async (chatId, text, options) => {
+      sent.push({ chatId, text, options });
     },
   };
-  const keyboards = {
-    showMainKeyboard: async (botArg, chatId) => {
-      sent.push({ chatId, main: true });
-    },
+  const mainKeyboard = {
+    reply_markup: { keyboard: [["Добавить транзакцию"]] },
   };
 
   setUserState("state-expired", { step: "date" });
@@ -74,14 +72,13 @@ test("state: при истечении отправляет уведомлени
     bot,
     chatId: "state-expired",
     messages: { COMMON: { SESSION_EXPIRED: "expired" } },
-    keyboards,
+    keyboards: { mainKeyboard },
   });
 
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(result, null);
   assert.deepEqual(sent, [
-    { chatId: "state-expired", text: "expired" },
-    { chatId: "state-expired", main: true },
+    { chatId: "state-expired", text: "expired", options: mainKeyboard },
   ]);
 });

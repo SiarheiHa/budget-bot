@@ -1,4 +1,4 @@
-import { showMainKeyboard, removeKeyboard } from "../keyboards.js";
+import { mainKeyboard, removeKeyboard } from "../keyboards.js";
 import { createAccessMiddleware } from "../utils.js";
 import { MESSAGES } from "../messages.js";
 
@@ -14,23 +14,20 @@ export async function handleBalanceCommand(bot, deps, msg) {
     const balances = await sheets.getBalances();
 
     if (!balances || balances.length === 0) {
-      await bot.sendMessage(chatId, MESSAGES.BALANCE.NO_DATA);
-      await showMainKeyboard(bot, chatId);
+      await bot.sendMessage(chatId, MESSAGES.BALANCE.NO_DATA, mainKeyboard);
       return;
     }
 
     const text = balances
       .map((b) => `💰 ${b.name}: ${b.balance} ${b.currency}`)
       .join("\n");
-    await bot.sendMessage(chatId, MESSAGES.BALANCE.TITLE + text);
-    await showMainKeyboard(bot, chatId);
+    await bot.sendMessage(chatId, MESSAGES.BALANCE.TITLE + text, mainKeyboard);
   } catch (err) {
     logger.error(
       `Ошибка при получении балансов для пользователя ${chatId}: ${err.message}`,
       err
     );
-    await bot.sendMessage(chatId, MESSAGES.BALANCE.ERROR);
-    await showMainKeyboard(bot, chatId);
+    await bot.sendMessage(chatId, MESSAGES.BALANCE.ERROR, mainKeyboard);
   }
 }
 

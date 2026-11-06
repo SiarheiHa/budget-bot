@@ -25,8 +25,13 @@ function createBot() {
     bot.deleted.push({ chatId, messageId });
   };
   bot.sendMessage = async (chatId, text, options) => {
-    bot.sent.push({ chatId, text, options });
-    return { message_id: 100 + bot.sent.length };
+    const message = {
+      message_id: 100 + bot.sent.length,
+      chat: { id: chatId },
+      text,
+    };
+    bot.sent.push({ chatId, text, options, message });
+    return message;
   };
 
   return bot;
@@ -42,6 +47,8 @@ function createDeps(initialState = {}) {
     logger: { info() {}, warn() {}, error() {}, debug() {} },
     sheets: {},
     amountUi: createAmountUiQueue({ minIntervalMs: 0 }),
+    schedule: (fn) => fn(),
+    cancelMessageTtlMs: 0,
     state: {
       get: (id) => store.get(String(id)) || null,
       set: (id, value) => store.set(String(id), value),
@@ -175,6 +182,11 @@ test("callback: отмена удаляет карточку и оставляе
   assert.equal(bot.sent[0].text, MESSAGES.COMMON.CANCELLED);
   assert.ok(bot.sent[0].options.reply_markup.keyboard);
   assert.ok(bot.deleted.some((item) => item.messageId === 10));
+  assert.ok(
+    bot.deleted.some(
+      (item) => item.messageId === bot.sent[0].message.message_id
+    )
+  );
 });
 
 test("callback: ввод суммы кнопками и переключение знака", async () => {
@@ -370,7 +382,11 @@ test("callback: отмена во время in-flight удаляет карто
 
   assert.equal(deps.store.has("1"), false);
   assert.ok(bot.deleted.some((item) => item.messageId === 10));
+  const cancelled = bot.sent.find(
+    (message) => message.text === MESSAGES.COMMON.CANCELLED
+  );
+  assert.ok(cancelled);
   assert.ok(
-    bot.sent.some((message) => message.text === MESSAGES.COMMON.CANCELLED)
+    bot.deleted.some((item) => item.messageId === cancelled.message.message_id)
   );
 });

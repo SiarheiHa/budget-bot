@@ -1,6 +1,8 @@
-import { mainKeyboard, showMainKeyboard } from "../keyboards.js";
+import { mainKeyboard } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
-import { removeInlineKeyboard, safeDeleteMessage } from "../utils.js";
+import { safeDeleteMessage, scheduleDeleteMessage } from "../utils.js";
+
+const CANCEL_MESSAGE_TTL_MS = 1000;
 
 export async function handleCancel(bot, deps, msg) {
   const { state, logger, amountUi } = deps;
@@ -16,37 +18,34 @@ export async function handleCancel(bot, deps, msg) {
       await amountUi.abort(chatId);
     }
 
-    if (currentState.cardMessageId) {
-      await bot.sendMessage(
-        chatId,
-        MESSAGES.COMMON.CANCELLED,
-        mainKeyboard
-      );
-      await safeDeleteMessage(
-        bot,
-        logger,
-        chatId,
-        currentState.cardMessageId
-      );
-      return;
+    const messageIds = new Set(
+      [
+        currentState.cardMessageId,
+        currentState.aiMessageId,
+        currentState.calendarMessageId,
+        currentState.amountMessageId,
+        msg.message_id,
+      ].filter(Boolean)
+    );
+
+    for (const messageId of messageIds) {
+      await safeDeleteMessage(bot, logger, chatId, messageId);
     }
 
-    await removeInlineKeyboard(
-      bot,
-      logger,
+    const cancelled = await bot.sendMessage(
       chatId,
-      currentState.calendarMessageId
+      MESSAGES.COMMON.CANCELLED,
+      mainKeyboard
     );
-    await removeInlineKeyboard(
-      bot,
-      logger,
-      chatId,
-      currentState.amountMessageId
-    );
-    await removeInlineKeyboard(bot, logger, chatId, currentState.aiMessageId);
 
-    await bot.sendMessage(chatId, MESSAGES.COMMON.CANCELLED);
-    await showMainKeyboard(bot, chatId);
+    scheduleDeleteMessage(
+      bot,
+      logger,
+      chatId,
+      cancelled.message_id,
+      deps.cancelMessageTtlMs ?? CANCEL_MESSAGE_TTL_MS,
+      deps.schedule
+    );
   } catch (error) {
     logger.error(
       `Ошибка при обработке отмены для пользователя ${chatId}: ${error.message}`,

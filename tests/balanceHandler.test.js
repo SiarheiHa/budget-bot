@@ -13,6 +13,7 @@ test("balance: выводит балансы и возвращает меню", 
 
   await handleBalanceCommand(bot, deps, { chat: { id: 1 } });
 
+  assert.equal(bot.sent.length, 2);
   assert.equal(bot.sent[0].text, MESSAGES.BALANCE.LOADING);
   assert.match(bot.sent[1].text, /Наличные: 100 RUB/);
   assert.ok(bot.sent.at(-1).options.reply_markup.keyboard);
@@ -24,6 +25,7 @@ test("balance: пустой список показывает NO_DATA", async ()
 
   await handleBalanceCommand(bot, deps, { chat: { id: 1 } });
 
+  assert.equal(bot.sent.length, 2);
   assert.ok(
     bot.sent.some((message) => message.text === MESSAGES.BALANCE.NO_DATA)
   );
@@ -45,6 +47,7 @@ test("balance: ошибка Sheets показывает ERROR и возвращ�
 
   await handleBalanceCommand(bot, deps, { chat: { id: 1 } });
 
+  assert.equal(bot.sent.length, 2);
   assert.ok(
     bot.sent.some((message) => message.text === MESSAGES.BALANCE.ERROR)
   );
@@ -58,6 +61,7 @@ test("balance: команда /balance проходит через onText", asyn
 
   await emitText(bot, "/balance");
 
+  assert.equal(bot.sent.length, 2);
   assert.equal(bot.sent[0].text, MESSAGES.BALANCE.LOADING);
   assert.match(bot.sent[1].text, /Наличные: 100 RUB/);
 });

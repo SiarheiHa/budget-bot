@@ -20,63 +20,111 @@ const legacyState = {
   amountMessageId: 11,
 };
 
-test("cancel: удаляет карточку и оставляет одно сообщение с меню", async () => {
+function findCancelled(bot) {
+  return bot.sent.find((message) => message.text === MESSAGES.COMMON.CANCELLED);
+}
+
+test("cancel: удаляет карточку, /cancel и подтверждение", async () => {
   const bot = createBot();
   const deps = createDeps({ 1: cardState });
 
-  await handleCancel(bot, deps, { chat: { id: 1 } });
+  await handleCancel(bot, deps, { chat: { id: 1 }, message_id: 20 });
 
   assert.equal(deps.store.has("1"), false);
   assert.equal(bot.sent.length, 1);
-  assert.equal(bot.sent[0].text, MESSAGES.COMMON.CANCELLED);
-  assert.ok(bot.sent[0].options.reply_markup.keyboard);
+
+  const cancelled = findCancelled(bot);
+  assert.ok(cancelled);
+  assert.ok(cancelled.options.reply_markup.keyboard);
   assert.ok(bot.deleted.some((item) => item.messageId === 10));
+  assert.ok(bot.deleted.some((item) => item.messageId === 20));
+  assert.ok(
+    bot.deleted.some(
+      (item) => item.messageId === cancelled.message.message_id
+    )
+  );
+  assert.equal(bot.edits.length, 0);
+});
+
+test("cancel: подтверждение удаляется через 1 секунду", async () => {
+  const tasks = [];
+  const bot = createBot();
+  const deps = createDeps(
+    { 1: cardState },
+    {
+      schedule: (fn, delayMs) => {
+        tasks.push({ fn, delayMs });
+        return { unref() {} };
+      },
+      cancelMessageTtlMs: 1000,
+    }
+  );
+
+  await handleCancel(bot, deps, { chat: { id: 1 }, message_id: 20 });
+
+  const cancelled = findCancelled(bot);
+  assert.ok(cancelled);
+  assert.equal(tasks.length, 1);
+  assert.equal(tasks[0].delayMs, 1000);
+  assert.ok(
+    !bot.deleted.some(
+      (item) => item.messageId === cancelled.message.message_id
+    )
+  );
+
+  tasks[0].fn();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.ok(
+    bot.deleted.some(
+      (item) => item.messageId === cancelled.message.message_id
+    )
+  );
 });
 
 test("cancel: без активного state ничего не делает", async () => {
   const bot = createBot();
   const deps = createDeps();
 
-  await handleCancel(bot, deps, { chat: { id: 1 } });
+  await handleCancel(bot, deps, { chat: { id: 1 }, message_id: 20 });
 
   assert.equal(bot.sent.length, 0);
   assert.equal(bot.edits.length, 0);
   assert.equal(bot.deleted.length, 0);
 });
 
-test("cancel: старые inline-клавиатуры по-прежнему убираются", async () => {
+test("cancel: старые сообщения с inline-клавиатурами удаляются", async () => {
   const bot = createBot();
   const deps = createDeps({ 1: legacyState });
 
   await handleCancel(bot, deps, { chat: { id: 1 } });
 
   assert.equal(deps.store.has("1"), false);
-  assert.equal(bot.edits.filter((edit) => edit.type === "markup").length, 2);
-  assert.ok(
-    bot.sent.some((message) => message.text === MESSAGES.COMMON.CANCELLED)
-  );
-  assert.ok(bot.sent.at(-1).options.reply_markup.keyboard);
+  assert.equal(bot.edits.length, 0);
+  assert.ok(bot.deleted.some((item) => item.messageId === 10));
+  assert.ok(bot.deleted.some((item) => item.messageId === 11));
+  assert.ok(findCancelled(bot));
 });
 
-test("cancel: команда /cancel проходит через onText", async () => {
+test("cancel: команда /cancel проходит через onText и удаляется", async () => {
   const bot = createBot();
   const deps = createDeps({ 1: cardState });
   registerCancelHandler(bot, deps);
 
-  await emitText(bot, "/cancel");
+  const message = await emitText(bot, "/cancel");
 
   assert.equal(deps.store.has("1"), false);
-  assert.ok(
-    bot.sent.some((message) => message.text === MESSAGES.COMMON.CANCELLED)
-  );
+  assert.ok(bot.deleted.some((item) => item.messageId === message.message_id));
+  assert.ok(findCancelled(bot));
 });
 
-test("cancel: текст кнопки «❌ Отмена» тоже отменяет", async () => {
+test("cancel: текст кнопки «❌ Отмена» тоже отменяет и удаляется", async () => {
   const bot = createBot();
   const deps = createDeps({ 1: cardState });
   registerCancelHandler(bot, deps);
 
-  await emitText(bot, "❌ Отмена");
+  const message = await emitText(bot, "❌ Отмена");
 
   assert.equal(deps.store.has("1"), false);
+  assert.ok(bot.deleted.some((item) => item.messageId === message.message_id));
 });

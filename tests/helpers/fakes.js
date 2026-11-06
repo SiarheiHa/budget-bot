@@ -83,6 +83,8 @@ export function createDeps(initialState = {}, overrides = {}) {
     aiInFlight: overrides.aiInFlight || new Set(),
     amountUi:
       overrides.amountUi || createAmountUiQueue({ minIntervalMs: 0 }),
+    schedule: overrides.schedule || ((fn) => fn()),
+    cancelMessageTtlMs: overrides.cancelMessageTtlMs ?? 0,
     state: {
       get: (id) => store.get(String(id)) || null,
       peek: (id) => store.get(String(id)) || null,
@@ -117,8 +119,9 @@ export async function emitText(bot, text, chatId = 1) {
   const entry = bot.textHandlers.find(({ regexp }) => regexp.test(text));
   if (!entry) return false;
 
-  await entry.handler(buildMessage(text, chatId), entry.regexp.exec(text));
-  return true;
+  const message = buildMessage(text, chatId);
+  await entry.handler(message, entry.regexp.exec(text));
+  return message;
 }
 
 export async function emitMessage(bot, text, chatId = 1) {

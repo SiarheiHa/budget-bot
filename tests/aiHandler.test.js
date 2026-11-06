@@ -350,7 +350,7 @@ test("aiHandler: устаревшее подтверждение даёт alert"
   assert.equal(bot.answers[0].options.show_alert, true);
 });
 
-test("aiHandler: отмена убирает клавиатуру и очищает state", async () => {
+test("aiHandler: отмена удаляет сводку и очищает state", async () => {
   const { bot, deps } = setupWithCallbacks({
     initialState: confirmState(),
   });
@@ -358,9 +358,18 @@ test("aiHandler: отмена убирает клавиатуру и очища�
   await emitCallback(bot, deps, "ai:cancel");
 
   assert.equal(deps.store.has("1"), false);
-  assert.ok(bot.edits.some((edit) => edit.type === "markup"));
+  assert.equal(bot.edits.length, 0);
+  assert.ok(bot.deleted.some((item) => item.messageId === AI_MESSAGE_ID));
+
+  const cancelled = bot.sent.find(
+    (message) => message.text === MESSAGES.COMMON.CANCELLED
+  );
+  assert.ok(cancelled);
+  assert.ok(cancelled.options.reply_markup.keyboard);
   assert.ok(
-    bot.sent.some((message) => message.text === MESSAGES.COMMON.CANCELLED)
+    bot.deleted.some(
+      (item) => item.messageId === cancelled.message.message_id
+    )
   );
 });
 

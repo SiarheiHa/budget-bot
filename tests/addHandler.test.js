@@ -11,9 +11,8 @@ import {
 
 const DATE = "13.09.2025";
 
-async function startAdd(bot, deps) {
-  await emitText(bot, "/add");
-  return deps.store.get("1");
+async function startAdd(bot) {
+  return emitText(bot, "/add");
 }
 
 function editedMessageIds(bot) {
@@ -143,12 +142,15 @@ test("addHandler: невалидная дата не двигает диалог
   const deps = createDeps();
   registerAddHandler(bot, deps);
 
-  await startAdd(bot, deps);
-  await emitMessage(bot, "не дата");
+  const trigger = await startAdd(bot, deps);
+  const invalidMessage = await emitMessage(bot, "не дата");
 
   assert.equal(deps.store.get("1").step, "date");
   assert.match(bot.edits.at(-1).text, /Неверный формат даты/);
-  assert.equal(bot.deleted.length, 0);
+  assert.ok(bot.deleted.some((item) => item.messageId === trigger.message_id));
+  assert.ok(
+    !bot.deleted.some((item) => item.messageId === invalidMessage.message_id)
+  );
 });
 
 test("addHandler: невалидная сумма не двигает диалог и показывает ошибку в карточке", async () => {
@@ -282,13 +284,15 @@ test("addHandler: ошибка загрузки справочников пок�
   );
   registerAddHandler(bot, deps);
 
-  await emitText(bot, "/add");
+  const trigger = await emitText(bot, "/add");
 
   assert.equal(deps.store.has("1"), false);
+  assert.equal(bot.sent.length, 1);
   assert.ok(
     bot.sent.some(
       (message) => message.text === MESSAGES.ADD_TRANSACTION.INIT_ERROR
     )
   );
   assert.ok(bot.sent.at(-1).options.reply_markup.keyboard);
+  assert.ok(bot.deleted.some((item) => item.messageId === trigger.message_id));
 });

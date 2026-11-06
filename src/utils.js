@@ -341,6 +341,22 @@ export async function safeDeleteMessage(bot, logger, chatId, messageId) {
   }
 }
 
+export function scheduleDeleteMessage(
+  bot,
+  logger,
+  chatId,
+  messageId,
+  delayMs = 1000,
+  schedule = setTimeout
+) {
+  if (!messageId) return;
+
+  const timer = schedule(() => {
+    void safeDeleteMessage(bot, logger, chatId, messageId);
+  }, delayMs);
+  timer?.unref?.();
+}
+
 export async function removeInlineKeyboard(bot, logger, chatId, messageId) {
   if (!messageId) return;
 

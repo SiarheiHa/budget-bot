@@ -14,6 +14,15 @@
 - **Где смотреть:** `src/keyboards.js`, `src/calendar.js`, `src/amount.js`, `src/amountUi.js`, `src/handlers/addHandler.js`, `src/handlers/callbackHandler.js`, `src/utils.js`
 - **Статус:** исправлено, покрыто тестами `tests/addHandler.test.js` и `tests/callbackHandler.test.js`
 
+### 1.2 Очистка служебных сообщений
+- **Проблема:** при отмене и после баланса в чате оставались карточки, сводки AI, сообщения-триггеры и отдельное `Выберите действие`; подтверждения отмены накапливались.
+- **Текущее состояние:**
+  - отмена удаляет карточку/сводку, сообщение `/add`/`Добавить транзакцию`, входящее `/cancel` и старые inline-сообщения; отправляется одно `❌ Операция отменена.` с главным меню
+  - подтверждение отмены удаляется через 1 секунду через `scheduleDeleteMessage`; главная клавиатура остаётся
+  - `/balance` и сообщение об истечении TTL приходят с главным меню, без отдельного `Выберите действие`
+- **Где смотреть:** `src/handlers/cancelHandler.js`, `src/handlers/balanceHandler.js`, `src/handlers/addHandler.js`, `src/state.js`, `src/utils.js`
+- **Статус:** исправлено, покрыто тестами `tests/cancelHandler.test.js`, `tests/aiHandler.test.js`, `tests/callbackHandler.test.js`, `tests/balanceHandler.test.js`, `tests/state.test.js`
+
 ## 2. AI-парсинг
 
 ### 2.1 Ограничения MVP
