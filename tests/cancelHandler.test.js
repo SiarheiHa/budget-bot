@@ -24,7 +24,7 @@ function findCancelled(bot) {
   return bot.sent.find((message) => message.text === MESSAGES.COMMON.CANCELLED);
 }
 
-test("cancel: удаляет карточку, /cancel и подтверждение", async () => {
+test("cancel: удаляет карточку и /cancel, оставляет подтверждение с меню", async () => {
   const bot = createBot();
   const deps = createDeps({ 1: cardState });
 
@@ -39,47 +39,11 @@ test("cancel: удаляет карточку, /cancel и подтвержден
   assert.ok(bot.deleted.some((item) => item.messageId === 10));
   assert.ok(bot.deleted.some((item) => item.messageId === 20));
   assert.ok(
-    bot.deleted.some(
-      (item) => item.messageId === cancelled.message.message_id
-    )
-  );
-  assert.equal(bot.edits.length, 0);
-});
-
-test("cancel: подтверждение удаляется через 1 секунду", async () => {
-  const tasks = [];
-  const bot = createBot();
-  const deps = createDeps(
-    { 1: cardState },
-    {
-      schedule: (fn, delayMs) => {
-        tasks.push({ fn, delayMs });
-        return { unref() {} };
-      },
-      cancelMessageTtlMs: 1000,
-    }
-  );
-
-  await handleCancel(bot, deps, { chat: { id: 1 }, message_id: 20 });
-
-  const cancelled = findCancelled(bot);
-  assert.ok(cancelled);
-  assert.equal(tasks.length, 1);
-  assert.equal(tasks[0].delayMs, 1000);
-  assert.ok(
     !bot.deleted.some(
       (item) => item.messageId === cancelled.message.message_id
     )
   );
-
-  tasks[0].fn();
-  await new Promise((resolve) => setImmediate(resolve));
-
-  assert.ok(
-    bot.deleted.some(
-      (item) => item.messageId === cancelled.message.message_id
-    )
-  );
+  assert.equal(bot.edits.length, 0);
 });
 
 test("cancel: без активного state ничего не делает", async () => {

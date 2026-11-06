@@ -367,7 +367,7 @@ test("aiHandler: отмена удаляет сводку и очищает stat
   assert.ok(cancelled);
   assert.ok(cancelled.options.reply_markup.keyboard);
   assert.ok(
-    bot.deleted.some(
+    !bot.deleted.some(
       (item) => item.messageId === cancelled.message.message_id
     )
   );

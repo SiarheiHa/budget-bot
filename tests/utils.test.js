@@ -6,7 +6,6 @@ import {
   parseAmount,
   formatDateToDisplay,
   normalizeCategoryType,
-  scheduleDeleteMessage,
 } from '../src/utils.js';
 
 test('parseDateDDMMYYYY: full date DD.MM.YYYY', () => {
@@ -96,34 +95,6 @@ test('parseNaturalDate: невалидные значения', () => {
   assert.equal(parseNaturalDate('9 смородины', NOW), null);
   assert.equal(parseNaturalDate('не дата', NOW), null);
   assert.equal(parseNaturalDate('', NOW), null);
-});
-
-test('scheduleDeleteMessage: удаляет сообщение через переданный планировщик', () => {
-  const deleted = [];
-  const bot = {
-    deleteMessage: async (chatId, messageId) => {
-      deleted.push({ chatId, messageId });
-    },
-  };
-  let scheduled;
-
-  scheduleDeleteMessage(bot, null, 1, 10, 1000, (fn, delayMs) => {
-    scheduled = { fn, delayMs };
-  });
-
-  assert.equal(scheduled.delayMs, 1000);
-  scheduled.fn();
-  assert.deepEqual(deleted, [{ chatId: 1, messageId: 10 }]);
-});
-
-test('scheduleDeleteMessage: без messageId ничего не планирует', () => {
-  let called = false;
-
-  scheduleDeleteMessage({}, null, 1, null, 1000, () => {
-    called = true;
-  });
-
-  assert.equal(called, false);
 });
 
 test('normalizeCategoryType: русские и английские значения', () => {

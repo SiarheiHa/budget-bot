@@ -1,8 +1,6 @@
 import { mainKeyboard } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
-import { safeDeleteMessage, scheduleDeleteMessage } from "../utils.js";
-
-const CANCEL_MESSAGE_TTL_MS = 1000;
+import { safeDeleteMessage } from "../utils.js";
 
 export async function handleCancel(bot, deps, msg) {
   const { state, logger, amountUi } = deps;
@@ -32,20 +30,7 @@ export async function handleCancel(bot, deps, msg) {
       await safeDeleteMessage(bot, logger, chatId, messageId);
     }
 
-    const cancelled = await bot.sendMessage(
-      chatId,
-      MESSAGES.COMMON.CANCELLED,
-      mainKeyboard
-    );
-
-    scheduleDeleteMessage(
-      bot,
-      logger,
-      chatId,
-      cancelled.message_id,
-      deps.cancelMessageTtlMs ?? CANCEL_MESSAGE_TTL_MS,
-      deps.schedule
-    );
+    await bot.sendMessage(chatId, MESSAGES.COMMON.CANCELLED, mainKeyboard);
   } catch (error) {
     logger.error(
       `Ошибка при обработке отмены для пользователя ${chatId}: ${error.message}`,

@@ -83,8 +83,6 @@ export function createDeps(initialState = {}, overrides = {}) {
     aiInFlight: overrides.aiInFlight || new Set(),
     amountUi:
       overrides.amountUi || createAmountUiQueue({ minIntervalMs: 0 }),
-    schedule: overrides.schedule || ((fn) => fn()),
-    cancelMessageTtlMs: overrides.cancelMessageTtlMs ?? 0,
     state: {
       get: (id) => store.get(String(id)) || null,
       peek: (id) => store.get(String(id)) || null,

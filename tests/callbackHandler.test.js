@@ -47,8 +47,6 @@ function createDeps(initialState = {}) {
     logger: { info() {}, warn() {}, error() {}, debug() {} },
     sheets: {},
     amountUi: createAmountUiQueue({ minIntervalMs: 0 }),
-    schedule: (fn) => fn(),
-    cancelMessageTtlMs: 0,
     state: {
       get: (id) => store.get(String(id)) || null,
       set: (id, value) => store.set(String(id), value),
@@ -183,7 +181,7 @@ test("callback: отмена удаляет карточку и оставляе
   assert.ok(bot.sent[0].options.reply_markup.keyboard);
   assert.ok(bot.deleted.some((item) => item.messageId === 10));
   assert.ok(
-    bot.deleted.some(
+    !bot.deleted.some(
       (item) => item.messageId === bot.sent[0].message.message_id
     )
   );
@@ -387,6 +385,8 @@ test("callback: отмена во время in-flight удаляет карто
   );
   assert.ok(cancelled);
   assert.ok(
-    bot.deleted.some((item) => item.messageId === cancelled.message.message_id)
+    !bot.deleted.some(
+      (item) => item.messageId === cancelled.message.message_id
+    )
   );
 });
