@@ -212,14 +212,16 @@ test("callback: подтверждение отрицательной суммы
   assert.equal(state.step, "category");
   assert.equal(state.data.amount, -500.5);
   assert.equal(state.amountDraft, "");
-  assert.equal(bot.edits.length, 1);
-  assert.equal(bot.edits[0].form.message_id, 10);
-  assert.match(bot.edits[0].text, /-500,5/);
-  assert.ok(
-    bot.edits[0].form.reply_markup.inline_keyboard
-      .flat()
-      .some((button) => button.callback_data === "add:pick:category:0")
-  );
+
+  const card = bot.sent.at(-1);
+  assert.match(card.text, /-500,5/);
+  assert.match(card.text, /Выберите категорию/);
+  assert.deepEqual(card.options.reply_markup.keyboard, [
+    ["Еда"],
+    ["Транспорт"],
+    ["❌ Отмена"],
+  ]);
+  assert.ok(bot.deleted.some((item) => item.messageId === 10));
 });
 
 test("callback: пустая сумма не подтверждается", async () => {
@@ -327,14 +329,15 @@ test("callback: Готово во время in-flight переводит к к�
   assert.equal(state.step, "category");
   assert.equal(state.data.amount, 1);
 
-  const last = bot.edits.at(-1);
-  assert.equal(last.form.message_id, 10);
-  assert.match(last.text, /Сумма: 1/);
-  assert.ok(
-    last.form.reply_markup.inline_keyboard
-      .flat()
-      .some((button) => button.callback_data === "add:pick:category:0")
-  );
+  const card = bot.sent.at(-1);
+  assert.match(card.text, /Сумма: 1/);
+  assert.match(card.text, /Выберите категорию/);
+  assert.deepEqual(card.options.reply_markup.keyboard, [
+    ["Еда"],
+    ["Транспорт"],
+    ["❌ Отмена"],
+  ]);
+  assert.ok(bot.deleted.some((item) => item.messageId === 10));
 });
 
 test("callback: отмена во время in-flight удаляет карточку", async () => {
@@ -370,81 +373,4 @@ test("callback: отмена во время in-flight удаляет карто
   assert.ok(
     bot.sent.some((message) => message.text === MESSAGES.COMMON.CANCELLED)
   );
-});
-
-test("callback: выбор категории переводит к кошельку", async () => {
-  const bot = createBot();
-  const deps = createDeps({
-    1: amountState({
-      step: "category",
-      data: { date: "31.10.2026", amount: 100 },
-      amountDraft: undefined,
-    }),
-  });
-  registerCallbackHandler(bot, deps);
-
-  await emitCallback(bot, deps, "add:pick:category:1");
-
-  const state = deps.store.get("1");
-  assert.equal(state.step, "wallet");
-  assert.equal(state.data.category, "Транспорт");
-  assert.equal(state.cardMessageId, 10);
-
-  const edit = bot.edits.at(-1);
-  assert.equal(edit.form.message_id, 10);
-  assert.match(edit.text, /Категория: Транспорт/);
-  assert.match(edit.text, /Выберите кошелёк/);
-  assert.ok(
-    edit.form.reply_markup.inline_keyboard
-      .flat()
-      .some((button) => button.callback_data === "add:pick:wallet:0")
-  );
-});
-
-test("callback: выбор кошелька переводит к примечанию", async () => {
-  const bot = createBot();
-  const deps = createDeps({
-    1: amountState({
-      step: "wallet",
-      data: { date: "31.10.2026", amount: 100, category: "Еда" },
-      amountDraft: undefined,
-    }),
-  });
-  registerCallbackHandler(bot, deps);
-
-  await emitCallback(bot, deps, "add:pick:wallet:0");
-
-  const state = deps.store.get("1");
-  assert.equal(state.step, "note");
-  assert.equal(state.data.wallet, "Наличные");
-
-  const edit = bot.edits.at(-1);
-  assert.equal(edit.form.message_id, 10);
-  assert.match(edit.text, /Кошелёк: Наличные/);
-  assert.match(edit.text, /Введите примечание/);
-  assert.ok(
-    edit.form.reply_markup.inline_keyboard
-      .flat()
-      .some((button) => button.callback_data === "v1:cancel")
-  );
-});
-
-test("callback: кнопка из старой карточки не меняет новый state", async () => {
-  const bot = createBot();
-  const deps = createDeps({
-    1: amountState({
-      step: "category",
-      data: { date: "31.10.2026", amount: 100 },
-      amountDraft: undefined,
-      cardMessageId: 10,
-    }),
-  });
-  registerCallbackHandler(bot, deps);
-
-  await emitCallback(bot, deps, "add:pick:category:0", { messageId: 11 });
-
-  assert.equal(bot.answers[0].options.show_alert, true);
-  assert.match(bot.answers[0].options.text, /устарела/);
-  assert.equal(bot.edits.length, 0);
-  assert.equal(deps.store.get("1").step, "category");
 });

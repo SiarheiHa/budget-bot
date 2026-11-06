@@ -6,8 +6,6 @@ import {
   completeAmountStep,
   completeDateStep,
   renderAmountStep,
-  selectCategory,
-  selectWallet,
   showCalendarStep,
 } from "./addHandler.js";
 import { handleCancel } from "./cancelHandler.js";
@@ -74,38 +72,6 @@ export function registerCallbackHandler(bot, deps) {
         await answer(
           alertText ? { text: alertText, show_alert: true } : undefined
         );
-        return;
-      }
-
-      const pickMatch = /^add:pick:(category|wallet):(\d+)$/.exec(data);
-      if (pickMatch) {
-        const field = pickMatch[1];
-        const userState = deps.state.get(chatId);
-        if (isStaleManualState(userState, field, messageId)) {
-          await answer({
-            text: MESSAGES.ADD_TRANSACTION.STALE,
-            show_alert: true,
-          });
-          return;
-        }
-
-        const items =
-          field === "category" ? userState.categories : userState.wallets;
-        const item = items?.[Number(pickMatch[2])];
-        if (!item) {
-          await answer({
-            text: MESSAGES.ADD_TRANSACTION.STALE,
-            show_alert: true,
-          });
-          return;
-        }
-
-        await answer();
-        if (field === "category") {
-          await selectCategory(bot, deps, chatId, userState, item);
-        } else {
-          await selectWallet(bot, deps, chatId, userState, item);
-        }
         return;
       }
 

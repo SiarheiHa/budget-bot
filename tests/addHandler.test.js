@@ -20,6 +20,10 @@ function editedMessageIds(bot) {
   return new Set(bot.edits.map((edit) => edit.form.message_id));
 }
 
+function lastReplyKeyboard(bot) {
+  return bot.sent.at(-1).options.reply_markup.keyboard;
+}
+
 test("addHandler: /add создаёт одну карточку с календарём", async () => {
   const bot = createBot();
   const deps = createDeps();
@@ -62,18 +66,32 @@ test("addHandler: полный сценарий редактирует одну 
   assert.ok(
     bot.deleted.some((item) => item.messageId === amountMessage.message_id)
   );
+  assert.match(bot.sent.at(-1).text, /Выберите категорию/);
+  assert.deepEqual(lastReplyKeyboard(bot), [
+    ["Еда"],
+    ["Транспорт"],
+    ["❌ Отмена"],
+  ]);
 
   const categoryMessage = await emitMessage(bot, "Еда");
   assert.equal(deps.store.get("1").step, "wallet");
   assert.ok(
     bot.deleted.some((item) => item.messageId === categoryMessage.message_id)
   );
+  assert.match(bot.sent.at(-1).text, /Выберите кошелёк/);
+  assert.deepEqual(lastReplyKeyboard(bot), [
+    ["Наличные"],
+    ["Карта"],
+    ["❌ Отмена"],
+  ]);
 
   const walletMessage = await emitMessage(bot, "Наличные");
   assert.equal(deps.store.get("1").step, "note");
   assert.ok(
     bot.deleted.some((item) => item.messageId === walletMessage.message_id)
   );
+  assert.match(bot.sent.at(-1).text, /Введите примечание/);
+  assert.deepEqual(lastReplyKeyboard(bot), [["❌ Отмена"]]);
 
   const noteMessage = await emitMessage(bot, "-");
 
@@ -89,13 +107,23 @@ test("addHandler: полный сценарий редактирует одну 
   assert.equal(deps.store.has("1"), false);
 
   assert.deepEqual([...editedMessageIds(bot)], [cardId]);
-  assert.ok(bot.deleted.some((item) => item.messageId === cardId));
-  assert.ok(
-    bot.deleted.some((item) => item.messageId === noteMessage.message_id)
-  );
+  assert.ok(bot.deleted.some((item) => item.messageId === noteMessage.message_id));
 
-  assert.equal(bot.sent.length, 2);
   const finalMessage = bot.sent.at(-1);
+  const intermediateCards = bot.sent.slice(0, -1);
+  assert.equal(intermediateCards.length, 4);
+  for (const message of intermediateCards) {
+    assert.ok(
+      bot.deleted.some(
+        (item) => item.messageId === message.message.message_id
+      )
+    );
+  }
+  assert.ok(
+    !bot.deleted.some(
+      (item) => item.messageId === finalMessage.message.message_id
+    )
+  );
   assert.match(finalMessage.text, /Дата: 13\.09\.2025/);
   assert.match(finalMessage.text, /Сумма: 123,45/);
   assert.match(finalMessage.text, /Категория: Еда/);
@@ -146,12 +174,22 @@ test("addHandler: невалидные категория и кошелёк по
 
   await emitMessage(bot, "Не еда");
   assert.equal(deps.store.get("1").step, "category");
-  assert.match(bot.edits.at(-1).text, /выберите категорию из предложенных/);
+  assert.match(bot.sent.at(-1).text, /выберите категорию из предложенных/);
+  assert.deepEqual(lastReplyKeyboard(bot), [
+    ["Еда"],
+    ["Транспорт"],
+    ["❌ Отмена"],
+  ]);
 
   await emitMessage(bot, "Еда");
   await emitMessage(bot, "Не кошелёк");
   assert.equal(deps.store.get("1").step, "wallet");
-  assert.match(bot.edits.at(-1).text, /выберите кошелёк из предложенных/);
+  assert.match(bot.sent.at(-1).text, /выберите кошелёк из предложенных/);
+  assert.deepEqual(lastReplyKeyboard(bot), [
+    ["Наличные"],
+    ["Карта"],
+    ["❌ Отмена"],
+  ]);
 });
 
 test("addHandler: без активного state обычные сообщения игнорируются", async () => {

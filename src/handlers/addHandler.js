@@ -11,7 +11,7 @@ import { formatAmountDraft, formatAmountValue } from "../amount.js";
 import { buildCalendarText } from "../calendar.js";
 import {
   createAmountKeyboard,
-  createAddPickKeyboard,
+  createCancelableKeyboard,
   createCalendarKeyboard,
   mainKeyboard,
   showMainKeyboard,
@@ -92,6 +92,26 @@ async function renderCardMessage(bot, deps, chatId, text, replyMarkup) {
   deps.state.update(chatId, { cardMessageId: sent.message_id });
 }
 
+async function sendCardWithReplyKeyboard(
+  bot,
+  deps,
+  chatId,
+  text,
+  replyMarkup
+) {
+  const current = deps.state.get(chatId);
+  const previousMessageId = current?.cardMessageId;
+
+  const sent = await bot.sendMessage(chatId, text, {
+    reply_markup: replyMarkup,
+  });
+  deps.state.update(chatId, { cardMessageId: sent.message_id });
+
+  if (previousMessageId) {
+    await safeDeleteMessage(bot, deps.logger, chatId, previousMessageId);
+  }
+}
+
 export async function showCalendarStep(bot, deps, chatId, options = {}) {
   const now = new Date();
   const year = options.year ?? now.getFullYear();
@@ -149,12 +169,12 @@ export async function showCategoryStep(bot, deps, chatId, error) {
     error,
   });
 
-  await renderCardMessage(
+  await sendCardWithReplyKeyboard(
     bot,
     deps,
     chatId,
     text,
-    createAddPickKeyboard("category", userState.categories).reply_markup
+    createCancelableKeyboard(userState.categories).reply_markup
   );
 }
 
@@ -167,12 +187,12 @@ export async function showWalletStep(bot, deps, chatId, error) {
     error,
   });
 
-  await renderCardMessage(
+  await sendCardWithReplyKeyboard(
     bot,
     deps,
     chatId,
     text,
-    createAddPickKeyboard("wallet", userState.wallets).reply_markup
+    createCancelableKeyboard(userState.wallets).reply_markup
   );
 }
 
@@ -185,12 +205,12 @@ export async function showNoteStep(bot, deps, chatId, error) {
     error,
   });
 
-  await renderCardMessage(
+  await sendCardWithReplyKeyboard(
     bot,
     deps,
     chatId,
     text,
-    createAddPickKeyboard("note", []).reply_markup
+    createCancelableKeyboard([]).reply_markup
   );
 }
 
@@ -226,7 +246,7 @@ export async function completeAmountStep(bot, deps, chatId, userState, amount) {
   await showCategoryStep(bot, deps, chatId);
 }
 
-export async function selectCategory(bot, deps, chatId, userState, category) {
+async function selectCategory(bot, deps, chatId, userState, category) {
   deps.state.update(chatId, {
     step: "wallet",
     data: {
@@ -238,7 +258,7 @@ export async function selectCategory(bot, deps, chatId, userState, category) {
   await showWalletStep(bot, deps, chatId);
 }
 
-export async function selectWallet(bot, deps, chatId, userState, wallet) {
+async function selectWallet(bot, deps, chatId, userState, wallet) {
   deps.state.update(chatId, {
     step: "note",
     data: {

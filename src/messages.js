@@ -53,8 +53,6 @@ export const MESSAGES = {
   ADD_TRANSACTION: {
     START: "Начинаем добавление транзакции...\n\nВведите дату операции",
     CARD_TITLE: "Новая транзакция",
-    STALE:
-      "Эта кнопка устарела. Начните добавление транзакции заново: /add",
     DATE_PROMPT: "Выберите дату операции",
     DATE_SELECTED: "📅 Дата:",
     DATE_STALE:
