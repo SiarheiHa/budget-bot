@@ -34,6 +34,15 @@ export function createCancelableKeyboard(items) {
   };
 }
 
+export function createNoteForceReply() {
+  return {
+    reply_markup: {
+      force_reply: true,
+      input_field_placeholder: "Примечание или -",
+    },
+  };
+}
+
 export function createAmountKeyboard(options = {}) {
   const prefix = options.prefix || "v1:amt";
   const allowSign = options.allowSign !== false;

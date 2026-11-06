@@ -13,6 +13,7 @@ import {
   createAmountKeyboard,
   createCancelableKeyboard,
   createCalendarKeyboard,
+  createNoteForceReply,
   mainKeyboard,
   showMainKeyboard,
 } from "../keyboards.js";
@@ -92,7 +93,7 @@ async function renderCardMessage(bot, deps, chatId, text, replyMarkup) {
   deps.state.update(chatId, { cardMessageId: sent.message_id });
 }
 
-async function sendCardWithReplyKeyboard(
+async function sendCardWithReplyMarkup(
   bot,
   deps,
   chatId,
@@ -169,7 +170,7 @@ export async function showCategoryStep(bot, deps, chatId, error) {
     error,
   });
 
-  await sendCardWithReplyKeyboard(
+  await sendCardWithReplyMarkup(
     bot,
     deps,
     chatId,
@@ -187,7 +188,7 @@ export async function showWalletStep(bot, deps, chatId, error) {
     error,
   });
 
-  await sendCardWithReplyKeyboard(
+  await sendCardWithReplyMarkup(
     bot,
     deps,
     chatId,
@@ -205,12 +206,12 @@ export async function showNoteStep(bot, deps, chatId, error) {
     error,
   });
 
-  await sendCardWithReplyKeyboard(
+  await sendCardWithReplyMarkup(
     bot,
     deps,
     chatId,
     text,
-    createCancelableKeyboard([]).reply_markup
+    createNoteForceReply().reply_markup
   );
 }
 

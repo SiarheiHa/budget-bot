@@ -91,7 +91,12 @@ test("addHandler: полный сценарий редактирует одну 
     bot.deleted.some((item) => item.messageId === walletMessage.message_id)
   );
   assert.match(bot.sent.at(-1).text, /Введите примечание/);
-  assert.deepEqual(lastReplyKeyboard(bot), [["❌ Отмена"]]);
+  assert.equal(bot.sent.at(-1).options.reply_markup.force_reply, true);
+  assert.equal(
+    bot.sent.at(-1).options.reply_markup.input_field_placeholder,
+    "Примечание или -"
+  );
+  assert.equal(bot.sent.at(-1).options.reply_markup.keyboard, undefined);
 
   const noteMessage = await emitMessage(bot, "-");
 

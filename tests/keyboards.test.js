@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   createAmountKeyboard,
   createCalendarKeyboard,
+  createNoteForceReply,
 } from "../src/keyboards.js";
 
 test("createAmountKeyboard: 4 колонки, без 00", () => {
@@ -50,6 +51,15 @@ test("createAmountKeyboard: AI-вариант без знака и с футер
     rows[4].map((button) => button.callback_data),
     ["ai:back", "ai:cancel"]
   );
+});
+
+test("createNoteForceReply: просит клиент открыть ввод", () => {
+  assert.deepEqual(createNoteForceReply(), {
+    reply_markup: {
+      force_reply: true,
+      input_field_placeholder: "Примечание или -",
+    },
+  });
 });
 
 test("createCalendarKeyboard: AI-префикс и футер", () => {
