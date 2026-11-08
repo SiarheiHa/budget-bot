@@ -270,6 +270,144 @@ test("addHandler: повторный /add удаляет старую карто
   assert.notEqual(deps.store.get("1").cardMessageId, oldCardId);
 });
 
+const TRANSFER_CATEGORIES = [
+  { name: "Еда", type: "expense" },
+  { name: "Перевод", type: "transfer" },
+];
+
+function createTransferDeps(overrides = {}) {
+  return createDeps(
+    {},
+    {
+      ...overrides,
+      sheets: {
+        getCategories: async () => TRANSFER_CATEGORIES,
+        ...(overrides.sheets || {}),
+      },
+    }
+  );
+}
+
+test("addHandler: перевод создаёт две транзакции", async () => {
+  const bot = createBot();
+  const deps = createTransferDeps();
+  registerAddHandler(bot, deps);
+
+  await startAdd(bot, deps);
+  assert.deepEqual(deps.store.get("1").categoryTypes, {
+    Еда: "expense",
+    Перевод: "transfer",
+  });
+
+  await emitMessage(bot, DATE);
+  await emitMessage(bot, "4,59");
+  await emitMessage(bot, "Перевод");
+
+  let state = deps.store.get("1");
+  assert.equal(state.step, "transferFrom");
+  assert.equal(state.data.amount, 4.59);
+  assert.equal(state.data.transfer, true);
+  assert.match(bot.sent.at(-1).text, /Выберите кошелёк, откуда перевести/);
+  assert.deepEqual(lastReplyKeyboard(bot), [
+    ["Наличные"],
+    ["Карта"],
+    ["❌ Отмена"],
+  ]);
+
+  await emitMessage(bot, "Наличные");
+
+  state = deps.store.get("1");
+  assert.equal(state.step, "transferTo");
+  assert.match(bot.sent.at(-1).text, /Выберите кошелёк, куда перевести/);
+  assert.deepEqual(lastReplyKeyboard(bot), [["Карта"], ["❌ Отмена"]]);
+
+  await emitMessage(bot, "Карта");
+  assert.equal(deps.store.get("1").step, "note");
+
+  await emitMessage(bot, "-");
+
+  assert.deepEqual(deps.transfers, [
+    {
+      date: DATE,
+      amount: 4.59,
+      category: "Перевод",
+      fromWallet: "Наличные",
+      toWallet: "Карта",
+      note: "",
+    },
+  ]);
+  assert.deepEqual(deps.transactions, []);
+  assert.equal(deps.store.has("1"), false);
+
+  const finalMessage = bot.sent.at(-1);
+  assert.match(finalMessage.text, /Откуда: Наличные/);
+  assert.match(finalMessage.text, /Куда: Карта/);
+  assert.match(finalMessage.text, /Сумма: 4,59/);
+  assert.match(finalMessage.text, /Запись добавлена в таблицу/);
+});
+
+test("addHandler: отрицательная сумма перевода нормализуется", async () => {
+  const bot = createBot();
+  const deps = createTransferDeps();
+  registerAddHandler(bot, deps);
+
+  await startAdd(bot, deps);
+  await emitMessage(bot, DATE);
+  await emitMessage(bot, "-4,59");
+  await emitMessage(bot, "Перевод");
+
+  assert.equal(deps.store.get("1").data.amount, 4.59);
+
+  await emitMessage(bot, "Наличные");
+  await emitMessage(bot, "Карта");
+  await emitMessage(bot, "-");
+
+  assert.equal(deps.transfers[0].amount, 4.59);
+});
+
+test("addHandler: нельзя перевести на тот же кошелёк", async () => {
+  const bot = createBot();
+  const deps = createTransferDeps();
+  registerAddHandler(bot, deps);
+
+  await startAdd(bot, deps);
+  await emitMessage(bot, DATE);
+  await emitMessage(bot, "4,59");
+  await emitMessage(bot, "Перевод");
+  await emitMessage(bot, "Наличные");
+
+  await emitMessage(bot, "Наличные");
+
+  const state = deps.store.get("1");
+  assert.equal(state.step, "transferTo");
+  assert.match(bot.sent.at(-1).text, /тот же кошелёк/);
+  assert.deepEqual(lastReplyKeyboard(bot), [["Карта"], ["❌ Отмена"]]);
+  assert.deepEqual(deps.transfers, []);
+});
+
+test("addHandler: при одном кошельке перевод отклоняется", async () => {
+  const bot = createBot();
+  const deps = createTransferDeps({
+    sheets: { getWallets: async () => ["Наличные"] },
+  });
+  registerAddHandler(bot, deps);
+
+  await startAdd(bot, deps);
+  await emitMessage(bot, DATE);
+  await emitMessage(bot, "4,59");
+  await emitMessage(bot, "Перевод");
+
+  const state = deps.store.get("1");
+  assert.equal(state.step, "category");
+  assert.match(bot.sent.at(-1).text, /минимум два кошелька/);
+  assert.deepEqual(lastReplyKeyboard(bot), [
+    ["Еда"],
+    ["Перевод"],
+    ["❌ Отмена"],
+  ]);
+  assert.deepEqual(deps.transfers, []);
+});
+
 test("addHandler: ошибка загрузки справочников показывает INIT_ERROR", async () => {
   const bot = createBot();
   const deps = createDeps(

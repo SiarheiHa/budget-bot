@@ -1,6 +1,10 @@
 import { config } from "./config.js";
 import { google } from "googleapis";
-import { escapeSheetFormula, normalizeCategoryType } from "./utils.js";
+import {
+  buildTransactionRow,
+  buildTransferRows,
+  normalizeCategoryType,
+} from "./utils.js";
 
 // Константы диапазонов
 const RANGES = {
@@ -168,31 +172,53 @@ if (process.argv[2] === "test") {
 
 // запись в таблицу
 
-async function appendTransaction({ date, amount, category, wallet, note }) {
+async function appendRows(values) {
   const sheets = await getSheetsClient();
-
-  // Порядок колонок: A, B, C, D, E, F, G
-  // B и D оставляем пустыми, чтобы не затирать формулы
-  const values = [
-    [date, "", amount, "", category, wallet, escapeSheetFormula(note)],
-  ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,
     range: RANGES.TRANSACTIONS,
     valueInputOption: "USER_ENTERED",
-    insertDataOption: "INSERT_ROWS", // вставляем строку в конец
+    insertDataOption: "INSERT_ROWS", // вставляем строки в конец
     requestBody: {
       values,
     },
   });
+}
+
+async function appendTransaction({ date, amount, category, wallet, note }) {
+  await appendRows([
+    buildTransactionRow({ date, amount, category, wallet, note }),
+  ]);
 
   console.log("✅ Транзакция добавлена!");
+}
+
+async function appendTransfer({
+  date,
+  amount,
+  category,
+  fromWallet,
+  toWallet,
+  note,
+}) {
+  const values = buildTransferRows({
+    date,
+    amount,
+    category,
+    fromWallet,
+    toWallet,
+    note,
+  });
+
+  await appendRows(values);
+  console.log("✅ Перевод добавлен!");
 }
 
 export const sheets = {
   getWallets,
   appendTransaction,
+  appendTransfer,
   getBalances,
   getCategories,
 };

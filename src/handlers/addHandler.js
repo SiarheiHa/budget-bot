@@ -49,10 +49,23 @@ function buildAddCardText(data, options = {}) {
   lines.push(
     `${MESSAGES.AI.DATE_LABEL}: ${data.date || "—"}`,
     `${MESSAGES.AI.AMOUNT_LABEL}: ${amountText}`,
-    `${MESSAGES.AI.CATEGORY_LABEL}: ${data.category || "—"}`,
-    `${MESSAGES.AI.WALLET_LABEL}: ${data.wallet || "—"}`,
-    `${MESSAGES.AI.NOTE_LABEL}: ${data.note || "—"}`
+    `${MESSAGES.AI.CATEGORY_LABEL}: ${data.category || "—"}`
   );
+
+  if (data.transfer) {
+    lines.push(
+      `${MESSAGES.ADD_TRANSACTION.TRANSFER_FROM_LABEL}: ${
+        data.transferFrom || "—"
+      }`,
+      `${MESSAGES.ADD_TRANSACTION.TRANSFER_TO_LABEL}: ${
+        data.transferTo || "—"
+      }`
+    );
+  } else {
+    lines.push(`${MESSAGES.AI.WALLET_LABEL}: ${data.wallet || "—"}`);
+  }
+
+  lines.push(`${MESSAGES.AI.NOTE_LABEL}: ${data.note || "—"}`);
 
   if (options.prompt) {
     lines.push("", options.prompt);
@@ -197,6 +210,45 @@ export async function showWalletStep(bot, deps, chatId, error) {
   );
 }
 
+export async function showTransferFromStep(bot, deps, chatId, error) {
+  const userState = deps.state.get(chatId);
+  if (!userState || userState.step !== "transferFrom") return;
+
+  const text = buildAddCardText(userState.data, {
+    prompt: MESSAGES.ADD_TRANSACTION.TRANSFER_FROM_PROMPT,
+    error,
+  });
+
+  await sendCardWithReplyMarkup(
+    bot,
+    deps,
+    chatId,
+    text,
+    createCancelableKeyboard(userState.wallets).reply_markup
+  );
+}
+
+export async function showTransferToStep(bot, deps, chatId, error) {
+  const userState = deps.state.get(chatId);
+  if (!userState || userState.step !== "transferTo") return;
+
+  const targets = (userState.wallets || []).filter(
+    (wallet) => wallet !== userState.data.transferFrom
+  );
+  const text = buildAddCardText(userState.data, {
+    prompt: MESSAGES.ADD_TRANSACTION.TRANSFER_TO_PROMPT,
+    error,
+  });
+
+  await sendCardWithReplyMarkup(
+    bot,
+    deps,
+    chatId,
+    text,
+    createCancelableKeyboard(targets).reply_markup
+  );
+}
+
 export async function showNoteStep(bot, deps, chatId, error) {
   const userState = deps.state.get(chatId);
   if (!userState || userState.step !== "note") return;
@@ -248,6 +300,35 @@ export async function completeAmountStep(bot, deps, chatId, userState, amount) {
 }
 
 async function selectCategory(bot, deps, chatId, userState, category) {
+  const type = userState.categoryTypes?.[category];
+
+  if (type === "transfer") {
+    if ((userState.wallets || []).length < 2) {
+      await showCategoryStep(
+        bot,
+        deps,
+        chatId,
+        MESSAGES.ADD_TRANSACTION.TRANSFER_NOT_ENOUGH_WALLETS
+      );
+      return;
+    }
+
+    deps.state.update(chatId, {
+      step: "transferFrom",
+      data: {
+        ...userState.data,
+        category,
+        amount: Math.abs(userState.data.amount),
+        transfer: true,
+        transferFrom: undefined,
+        transferTo: undefined,
+      },
+    });
+
+    await showTransferFromStep(bot, deps, chatId);
+    return;
+  }
+
   deps.state.update(chatId, {
     step: "wallet",
     data: {
@@ -265,6 +346,30 @@ async function selectWallet(bot, deps, chatId, userState, wallet) {
     data: {
       ...userState.data,
       wallet,
+    },
+  });
+
+  await showNoteStep(bot, deps, chatId);
+}
+
+async function selectTransferFrom(bot, deps, chatId, userState, wallet) {
+  deps.state.update(chatId, {
+    step: "transferTo",
+    data: {
+      ...userState.data,
+      transferFrom: wallet,
+    },
+  });
+
+  await showTransferToStep(bot, deps, chatId);
+}
+
+async function selectTransferTo(bot, deps, chatId, userState, wallet) {
+  deps.state.update(chatId, {
+    step: "note",
+    data: {
+      ...userState.data,
+      transferTo: wallet,
     },
   });
 
@@ -289,10 +394,28 @@ export async function completeNoteStep(
     ...userState.data,
     note,
   };
+  const isTransfer =
+    transactionData.transfer === true &&
+    Boolean(transactionData.transferFrom) &&
+    Boolean(transactionData.transferTo);
 
   try {
-    await sheets.appendTransaction(transactionData);
-    logger.info("Добавлена транзакция", transactionData);
+    if (isTransfer) {
+      await sheets.appendTransfer({
+        date: transactionData.date,
+        amount: transactionData.amount,
+        category: transactionData.category,
+        fromWallet: transactionData.transferFrom,
+        toWallet: transactionData.transferTo,
+        note,
+      });
+    } else {
+      await sheets.appendTransaction(transactionData);
+    }
+    logger.info(
+      isTransfer ? "Добавлен перевод" : "Добавлена транзакция",
+      transactionData
+    );
 
     await safeDeleteMessage(bot, logger, chatId, userMessageId);
 
@@ -336,6 +459,9 @@ export async function handleAddCommand(bot, deps, msg) {
       sheets.getWallets(),
     ]);
     const categories = categoryRows.map((category) => category.name);
+    const categoryTypes = Object.fromEntries(
+      categoryRows.map((category) => [category.name, category.type])
+    );
 
     const existingState = state.get(chatId);
     if (deps.amountUi) {
@@ -370,6 +496,7 @@ export async function handleAddCommand(bot, deps, msg) {
       step: "date",
       data: {},
       categories,
+      categoryTypes,
       wallets,
       amountDraft: "",
     });
@@ -472,6 +599,38 @@ export function registerAddHandler(bot, deps) {
 
         await safeDeleteMessage(bot, logger, chatId, msg.message_id);
         await selectWallet(bot, deps, chatId, userState, text);
+      } else if (userState.step === "transferFrom") {
+        if (!userState.wallets.includes(text)) {
+          await showTransferFromStep(
+            bot,
+            deps,
+            chatId,
+            MESSAGES.ADD_TRANSACTION.WALLET_INVALID
+          );
+          return;
+        }
+
+        await safeDeleteMessage(bot, logger, chatId, msg.message_id);
+        await selectTransferFrom(bot, deps, chatId, userState, text);
+      } else if (userState.step === "transferTo") {
+        const targets = userState.wallets.filter(
+          (wallet) => wallet !== userState.data.transferFrom
+        );
+
+        if (!targets.includes(text)) {
+          await showTransferToStep(
+            bot,
+            deps,
+            chatId,
+            text === userState.data.transferFrom
+              ? MESSAGES.ADD_TRANSACTION.TRANSFER_SAME_WALLET
+              : MESSAGES.ADD_TRANSACTION.WALLET_INVALID
+          );
+          return;
+        }
+
+        await safeDeleteMessage(bot, logger, chatId, msg.message_id);
+        await selectTransferTo(bot, deps, chatId, userState, text);
       } else if (userState.step === "note") {
         // Если пользователь отправил "-", сохраняем пустую строку
         const note = text === "-" ? "" : text;

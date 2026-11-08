@@ -301,6 +301,38 @@ export function escapeSheetFormula(value) {
   return text;
 }
 
+/**
+ * Строка транзакции в порядке колонок A:G.
+ * B и D оставляем пустыми, чтобы не затирать формулы.
+ * @param {{date: string, amount: number, category: string, wallet: string, note: string}} tx
+ * @returns {Array<string|number>}
+ */
+export function buildTransactionRow({ date, amount, category, wallet, note }) {
+  return [date, "", amount, "", category, wallet, escapeSheetFormula(note)];
+}
+
+/**
+ * Две строки перевода: списание с источника и зачисление получателю.
+ * @param {{date: string, amount: number, category: string, fromWallet: string, toWallet: string, note: string}} transfer
+ * @returns {Array<Array<string|number>>}
+ */
+export function buildTransferRows({
+  date,
+  amount,
+  category,
+  fromWallet,
+  toWallet,
+  note,
+}) {
+  const value = Math.abs(amount);
+  const safeNote = escapeSheetFormula(note);
+
+  return [
+    [date, "", -value, "", category, fromWallet, safeNote],
+    [date, "", value, "", category, toWallet, safeNote],
+  ];
+}
+
 // функция проверки доступа
 export function checkAccess(chatId, config) {
   // если список пуст и надо разрешить всем, то раскоментировать строку ниже
