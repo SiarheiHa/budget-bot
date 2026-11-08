@@ -46,7 +46,7 @@ export function registerCancelHandler(bot, deps) {
   });
 
   // Обработчик текста "Отмена" - без проверки доступа
-  bot.onText(/❌ Отмена/, async (msg) => {
+  bot.onText(/^❌ Отмена$/, async (msg) => {
     await handleCancel(bot, deps, msg);
   });
 }
