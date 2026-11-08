@@ -495,14 +495,24 @@ test("aiHandler: пока запрос в полёте, второй текст 
   assert.equal(calls, 1);
 });
 
-test("aiHandler: не транзакция даёт подсказку", async () => {
+test("aiHandler: не транзакция с цифрой даёт подсказку", async () => {
+  const { bot } = setup({
+    ai: { parse: async () => ({ ok: false, reason: "not_transaction" }) },
+  });
+
+  await emitMessage(bot, "кофе 250");
+
+  assert.equal(bot.sent.at(-1).text, MESSAGES.AI.NOT_RECOGNIZED);
+});
+
+test("aiHandler: бытовая фраза без цифр не получает ответ", async () => {
   const { bot } = setup({
     ai: { parse: async () => ({ ok: false, reason: "not_transaction" }) },
   });
 
   await emitMessage(bot, "привет");
 
-  assert.equal(bot.sent.at(-1).text, MESSAGES.AI.NOT_RECOGNIZED);
+  assert.equal(bot.sent.length, 0);
 });
 
 test("aiHandler: ошибка AI даёт понятное сообщение", async () => {

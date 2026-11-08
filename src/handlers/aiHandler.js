@@ -516,7 +516,9 @@ async function handleFreeText(bot, deps, msg) {
 
     if (!result.ok) {
       if (result.reason === "not_transaction") {
-        await bot.sendMessage(chatId, MESSAGES.AI.NOT_RECOGNIZED);
+        if (/\d/.test(text)) {
+          await bot.sendMessage(chatId, MESSAGES.AI.NOT_RECOGNIZED);
+        }
       } else if (result.reason !== "disabled") {
         await bot.sendMessage(chatId, MESSAGES.AI.ERROR);
       }
