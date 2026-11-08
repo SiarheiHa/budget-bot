@@ -270,6 +270,24 @@ test("addHandler: повторный /add удаляет старую карто
   assert.notEqual(deps.store.get("1").cardMessageId, oldCardId);
 });
 
+test("addHandler: повторный /add удаляет старую AI-карточку", async () => {
+  const bot = createBot();
+  const deps = createDeps({
+    1: {
+      aiStep: "confirm",
+      aiMessageId: 42,
+      aiDraft: { amount: 100, category: "Еда", wallet: "Наличные" },
+    },
+  });
+  registerAddHandler(bot, deps);
+
+  await startAdd(bot, deps);
+
+  assert.ok(bot.deleted.some((item) => item.messageId === 42));
+  assert.equal(editedMessageIds(bot).has(42), false);
+  assert.equal(deps.store.get("1").step, "date");
+});
+
 const TRANSFER_CATEGORIES = [
   { name: "Еда", type: "expense" },
   { name: "Перевод", type: "transfer" },

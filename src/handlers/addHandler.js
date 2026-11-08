@@ -488,7 +488,7 @@ export async function handleAddCommand(bot, deps, msg) {
         chatId,
         existingState.amountMessageId
       );
-      await removeInlineKeyboard(bot, logger, chatId, existingState.aiMessageId);
+      await safeDeleteMessage(bot, logger, chatId, existingState.aiMessageId);
     }
 
     // Сохраняем в состоянии для последующего использования
