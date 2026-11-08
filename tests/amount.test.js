@@ -10,6 +10,7 @@ import {
   parseAmountCallback,
   formatAmountDraft,
   formatAmountValue,
+  formatBalanceValue,
   MAX_INTEGER_DIGITS,
   MAX_DECIMAL_DIGITS,
 } from "../src/amount.js";
@@ -106,4 +107,13 @@ test("amount: форматирование значения", () => {
   assert.equal(formatAmountValue(-500), "-500");
   assert.equal(formatAmountValue(1250.5), "1 250,5");
   assert.equal(formatAmountValue(NaN), "");
+});
+
+test("amount: formatBalanceValue", () => {
+  assert.equal(formatBalanceValue(0), "0,00");
+  assert.equal(formatBalanceValue(100), "100,00");
+  assert.equal(formatBalanceValue(1234.5), "1 234,50");
+  assert.equal(formatBalanceValue(-1234.567), "-1 234,57");
+  assert.equal(formatBalanceValue(NaN), "");
+  assert.equal(formatBalanceValue("100"), "");
 });

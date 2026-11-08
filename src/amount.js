@@ -140,3 +140,15 @@ export function formatAmountValue(amount) {
 
   return `${negative ? "-" : ""}${grouped}${fraction ? `,${fraction}` : ""}`;
 }
+
+export function formatBalanceValue(amount) {
+  if (typeof amount !== "number" || !Number.isFinite(amount)) return "";
+
+  const value = amount.toFixed(2);
+  const negative = value.startsWith("-");
+  const body = negative ? value.slice(1) : value;
+  const [integer, fraction] = body.split(".");
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+
+  return `${negative ? "-" : ""}${grouped},${fraction}`;
+}

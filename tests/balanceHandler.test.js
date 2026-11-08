@@ -15,7 +15,7 @@ test("balance: выводит балансы и возвращает меню", 
 
   assert.equal(bot.sent.length, 2);
   assert.equal(bot.sent[0].text, MESSAGES.BALANCE.LOADING);
-  assert.match(bot.sent[1].text, /Наличные: 100 RUB/);
+  assert.match(bot.sent[1].text, /Наличные: 100,00 RUB/);
   assert.ok(bot.sent[1].options.reply_markup.keyboard);
   assert.equal(bot.edits.length, 0);
   assert.ok(
@@ -75,5 +75,5 @@ test("balance: команда /balance проходит через onText", asyn
 
   assert.equal(bot.sent.length, 2);
   assert.equal(bot.sent[0].text, MESSAGES.BALANCE.LOADING);
-  assert.match(bot.sent[1].text, /Наличные: 100 RUB/);
+  assert.match(bot.sent[1].text, /Наличные: 100,00 RUB/);
 });

@@ -1,5 +1,6 @@
 import { mainKeyboard, removeKeyboard } from "../keyboards.js";
 import { createAccessMiddleware, safeDeleteMessage } from "../utils.js";
+import { formatBalanceValue } from "../amount.js";
 import { MESSAGES } from "../messages.js";
 
 async function finishLoadingMessage(bot, logger, chatId, messageId, text) {
@@ -39,7 +40,10 @@ export async function handleBalanceCommand(bot, deps, msg) {
     }
 
     const text = balances
-      .map((b) => `💰 ${b.name}: ${b.balance} ${b.currency}`)
+      .map(
+        (b) =>
+          `💰 ${b.name}: ${formatBalanceValue(b.balance)} ${b.currency}`
+      )
       .join("\n");
     await finishLoadingMessage(
       bot,
