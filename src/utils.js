@@ -282,6 +282,25 @@ export function normalizeCategoryType(value) {
   return null;
 }
 
+/**
+ * Экранирует текст для записи с valueInputOption: "USER_ENTERED".
+ * Google Sheets воспринимает строки, начинающиеся с =, +, -, @ или
+ * с табуляции/перевода каретки, как формулы. Префикс с апострофом
+ * заставляет сохранить значение как текст; апостроф в ячейке не виден.
+ * @param {*} value
+ * @returns {string}
+ */
+export function escapeSheetFormula(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (!text) return text;
+
+  if (/^\s*[=+\-@]/.test(text) || /^[\t\r]/.test(text)) {
+    return `'${text}`;
+  }
+
+  return text;
+}
+
 // функция проверки доступа
 export function checkAccess(chatId, config) {
   // если список пуст и надо разрешить всем, то раскоментировать строку ниже

@@ -1,6 +1,6 @@
 import { config } from "./config.js";
 import { google } from "googleapis";
-import { normalizeCategoryType } from "./utils.js";
+import { escapeSheetFormula, normalizeCategoryType } from "./utils.js";
 
 // Константы диапазонов
 const RANGES = {
@@ -173,7 +173,9 @@ async function appendTransaction({ date, amount, category, wallet, note }) {
 
   // Порядок колонок: A, B, C, D, E, F, G
   // B и D оставляем пустыми, чтобы не затирать формулы
-  const values = [[date, "", amount, "", category, wallet, note]];
+  const values = [
+    [date, "", amount, "", category, wallet, escapeSheetFormula(note)],
+  ];
 
   await sheets.spreadsheets.values.append({
     spreadsheetId,

@@ -6,6 +6,7 @@ import {
   parseAmount,
   formatDateToDisplay,
   normalizeCategoryType,
+  escapeSheetFormula,
 } from '../src/utils.js';
 
 test('parseDateDDMMYYYY: full date DD.MM.YYYY', () => {
@@ -95,6 +96,25 @@ test('parseNaturalDate: невалидные значения', () => {
   assert.equal(parseNaturalDate('9 смородины', NOW), null);
   assert.equal(parseNaturalDate('не дата', NOW), null);
   assert.equal(parseNaturalDate('', NOW), null);
+});
+
+test('escapeSheetFormula: экранирует формулы', () => {
+  assert.equal(escapeSheetFormula('=1+1'), "'=1+1");
+  assert.equal(escapeSheetFormula('+7 999'), "'+7 999");
+  assert.equal(escapeSheetFormula('-500'), "'-500");
+  assert.equal(escapeSheetFormula('@user'), "'@user");
+  assert.equal(escapeSheetFormula('  =SUM(A1)'), "'  =SUM(A1)");
+  assert.equal(escapeSheetFormula('\t=1'), "'\t=1");
+  assert.equal(escapeSheetFormula('\r=1'), "'\r=1");
+});
+
+test('escapeSheetFormula: не трогает обычный текст', () => {
+  assert.equal(escapeSheetFormula('кофе'), 'кофе');
+  assert.equal(escapeSheetFormula('12 = 12'), '12 = 12');
+  assert.equal(escapeSheetFormula("'=1+1"), "'=1+1");
+  assert.equal(escapeSheetFormula(''), '');
+  assert.equal(escapeSheetFormula(null), '');
+  assert.equal(escapeSheetFormula(undefined), '');
 });
 
 test('normalizeCategoryType: русские и английские значения', () => {
