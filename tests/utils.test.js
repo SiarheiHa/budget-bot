@@ -53,7 +53,15 @@ test('parseAmount: negative values', () => {
 });
 
 test('parseAmount: invalid returns NaN', () => {
-  assert.equal(Number.isNaN(parseAmount('abc')), true);
+  for (const value of ['abc', '', '.', '5.', '.5', '1e3']) {
+    assert.equal(Number.isNaN(parseAmount(value)), true, value);
+  }
+});
+
+test('parseAmount: rejects trailing garbage and mixed separators', () => {
+  for (const value of ['12abc', '1,2,3', '1.2.3', '1.234,56', '1,234.56']) {
+    assert.equal(Number.isNaN(parseAmount(value)), true, value);
+  }
 });
 
 test('formatDateToDisplay', () => {

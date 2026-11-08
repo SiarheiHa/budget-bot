@@ -255,6 +255,7 @@ export function formatDateToDisplay(date) {
 
 /**
  * Парсит сумму из строки — принимает запятую или точку, убирает пробелы.
+ * Строка должна целиком быть числом: "12abc", "1,2,3" и "1.2.3" отклоняются.
  * Возвращает число (float) или NaN если не удалось распарсить.
  * @param {string|number} text
  * @returns {number}
@@ -266,8 +267,11 @@ export function parseAmount(text) {
     .trim()
     .replace(/\s+/g, "")
     .replace(/−/g, "-")
-    .replace(",", ".");
-  const num = parseFloat(cleaned);
+    .replace(/,/g, ".");
+
+  if (!/^[+-]?\d+(?:\.\d+)?$/.test(cleaned)) return NaN;
+
+  const num = Number(cleaned);
   return Number.isFinite(num) ? num : NaN;
 }
 
