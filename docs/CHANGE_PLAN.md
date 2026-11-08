@@ -67,7 +67,7 @@
 - **Риск:** низкий.
 - **Файлы:** `src/handlers/cancelHandler.js`, `src/state.js`.
 - **Проверка:** unit-тест на `/cancel` с истёкшим state; ручная проверка.
-- **Статус:** [ ]
+- **Статус:** [x]
 
 ### A8. `DEBUG=false` включает debug-логи
 - **Проблема:** `if (process.env.DEBUG)` считает строку `"false"` истиной.

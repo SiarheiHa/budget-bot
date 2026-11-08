@@ -6,7 +6,12 @@ export async function handleCancel(bot, deps, msg) {
   const { state, logger, amountUi } = deps;
   const chatId = msg.chat.id;
 
-  const currentState = state.get(chatId);
+  const currentState = state.get(chatId, {
+    bot,
+    chatId,
+    messages: { COMMON: MESSAGES.COMMON },
+    keyboards: { mainKeyboard },
+  });
   if (!currentState) return;
 
   try {
