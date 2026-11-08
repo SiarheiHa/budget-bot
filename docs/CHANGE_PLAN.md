@@ -111,14 +111,6 @@
 - **Проверка:** unit-тесты; ручной `/balance`.
 - **Статус:** [x]
 
-### B17. Команды вида `/add@botname`
-- **Проблема:** точные regex не поддерживают суффикс с именем бота.
-- **Зачем:** работа в группах и при упоминании.
-- **Риск:** низкий.
-- **Файлы:** `src/handlers/startHandler.js`, `src/handlers/addHandler.js`, `src/handlers/balanceHandler.js`, `src/handlers/cancelHandler.js`.
-- **Проверка:** unit-тесты; ручная проверка.
-- **Статус:** [ ]
-
 ## D. Техдолг и инфраструктура
 
 ### D23. Удалить неиспользуемый `google-spreadsheet`
