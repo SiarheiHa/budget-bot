@@ -1,5 +1,6 @@
 import { config } from "./config.js";
 import { google } from "googleapis";
+import { logger } from "./logger.js";
 import {
   buildTransactionRow,
   buildTransferRows,
@@ -20,7 +21,7 @@ const spreadsheetId = config.spreadsheetId;
 function createAuth() {
   // Если есть закодированные credentials в переменной окружения
   if (config.googleCredentialsB64) {
-    console.log("🔐 Используем аутентификацию через GOOGLE_CREDENTIALS_B64");
+    logger.info("🔐 Используем аутентификацию через GOOGLE_CREDENTIALS_B64");
     const credentialsJson = Buffer.from(
       config.googleCredentialsB64,
       "base64"
@@ -31,7 +32,7 @@ function createAuth() {
     });
   } else {
     // Fallback на файл credentials.json для локальной разработки
-    console.log("🔐 Используем аутентификацию через credentials.json");
+    logger.info("🔐 Используем аутентификацию через credentials.json");
     return new google.auth.GoogleAuth({
       keyFile: "credentials.json",
       scopes: ["https://www.googleapis.com/auth/spreadsheets"],
@@ -93,7 +94,7 @@ async function getCategories() {
       const rawType = row?.[1];
       const type = normalizeCategoryType(rawType);
       if (String(rawType ?? "").trim() && !type) {
-        console.warn(`Неизвестный тип категории "${name}": ${rawType}`);
+        logger.warn(`Неизвестный тип категории "${name}": ${rawType}`);
       }
 
       return { name, type };
@@ -134,7 +135,7 @@ async function getBalances() {
 
         // Валидация данных
         if (name.trim() === "") {
-          console.warn("Обнаружена запись с пустым названием кошелька");
+          logger.warn("Обнаружена запись с пустым названием кошелька");
           return null;
         }
 
@@ -144,7 +145,7 @@ async function getBalances() {
           currency: currency.trim().toUpperCase() || "неизвестная валюта", // Значение по умолчанию
         };
       } catch (error) {
-        console.warn(`Ошибка обработки строки кошелька: ${error.message}`);
+        logger.warn(`Ошибка обработки строки кошелька: ${error.message}`);
         return null;
       }
     });
@@ -152,7 +153,7 @@ async function getBalances() {
     // Фильтруем некорректные записи
     return balances.filter((balance) => balance !== null);
   } catch (error) {
-    console.error(`Ошибка получения данных из таблицы: ${error.message}`);
+    logger.error(`Ошибка получения данных из таблицы: ${error.message}`);
     throw new Error("Не удалось получить данные о балансах из таблицы");
   }
 }
@@ -162,10 +163,10 @@ if (process.argv[2] === "test") {
   (async () => {
     try {
       const bal = await getBalances();
-      console.log("Балансы (getBalances):");
+      logger.info("Балансы (getBalances):");
       console.table(bal);
     } catch (err) {
-      console.error("Ошибка при getBalances():", err.message || err);
+      logger.error("Ошибка при getBalances():", err.message || err);
     }
   })();
 }
@@ -191,7 +192,7 @@ async function appendTransaction({ date, amount, category, wallet, note }) {
     buildTransactionRow({ date, amount, category, wallet, note }),
   ]);
 
-  console.log("✅ Транзакция добавлена!");
+  logger.info("✅ Транзакция добавлена!");
 }
 
 async function appendTransfer({
@@ -212,7 +213,7 @@ async function appendTransfer({
   });
 
   await appendRows(values);
-  console.log("✅ Перевод добавлен!");
+  logger.info("✅ Перевод добавлен!");
 }
 
 export const sheets = {
