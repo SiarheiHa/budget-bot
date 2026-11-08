@@ -175,7 +175,12 @@ Callback-отмена (`v1:cancel`, `ai:cancel`) проходит через п�
   главным меню.
 - `startHandler` вызывает `handleAddCommand`/`handleBalanceCommand` напрямую;
   оба обработчика проверяют доступ.
-- `sheets.js` при аргументе `test` делает быструю проверку `getBalances()`.
+- `sheets.js` экспортирует `createSheets({ config, logger, valuesApi })`;
+  `bot.js` создаёт экземпляр, а тесты подменяют `valuesApi`. Реальный
+  Google-клиент создаётся лениво. При аргументе `test` модуль делает быструю
+  проверку `getBalances()`.
+- `configBuilder.js` собирает конфиг из переданного env без побочных эффектов;
+  `config.js` загружает dotenv и валидирует переменные при старте.
 - `logger` — минимальная обёртка над `console` с уровнями и `DEBUG`.
 - `package.json`: `main: "server.js"`, `start: "node server.js"`,
   `dev: "nodemon src/index.js"`.
