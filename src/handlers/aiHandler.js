@@ -523,6 +523,16 @@ async function handleFreeText(bot, deps, msg) {
       return;
     }
 
+    // Пока шёл запрос к AI, пользователь мог начать другой диалог (/add).
+    // Не перезаписываем появившееся состояние и не показываем AI-карточку.
+    const appeared = deps.state.peek
+      ? deps.state.peek(chatId)
+      : deps.state.get(chatId);
+    if (appeared) {
+      deps.logger?.debug?.(`AI result discarded: state appeared for ${chatId}`);
+      return;
+    }
+
     const draft = {
       ...result.draft,
       type: deriveType(categories, result.draft.category),

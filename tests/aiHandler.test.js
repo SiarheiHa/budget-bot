@@ -412,6 +412,26 @@ test("aiHandler: не вмешивается в активный диалог /a
   assert.equal(bot.sent.length, 0);
 });
 
+test("aiHandler: поздний ответ не перезаписывает начатый /add", async () => {
+  let depsRef;
+  const { bot, deps } = setup({
+    ai: {
+      parse: async () => {
+        depsRef.state.set("1", { step: "date", data: { date: "04.11.2026" } });
+        return aiResult();
+      },
+    },
+  });
+  depsRef = deps;
+
+  await emitMessage(bot, "кофе 250");
+
+  const state = deps.store.get("1");
+  assert.equal(state.step, "date");
+  assert.equal(state.aiDraft, undefined);
+  assert.equal(bot.sent.length, 0);
+});
+
 test("aiHandler: команды, меню и отмена игнорируются", async () => {
   let parsed = false;
   const { bot } = setup({
