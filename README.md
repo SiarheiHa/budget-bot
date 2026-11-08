@@ -19,7 +19,7 @@ Telegram-бот для учёта финансов. Данные хранятс�
 | `ALLOWED_USERS` | да | Список Telegram ID через запятую. Доступ только указанным пользователям |
 | `GOOGLE_CREDENTIALS_B64` | нет | JSON ключ сервисного аккаунта в Base64 (приоритетный способ авторизации) |
 | `NODE_ENV` | нет | `development` или `production` |
-| `DEBUG` | нет | Включает debug-логи |
+| `DEBUG` | нет | Подробные debug-логи: `1/true/yes/on` — включить, `0/false/no/off` — выключить |
 | `PORT` | нет | Порт health-check сервера (по умолчанию 3000) |
 | `CLOUDFLARE_ACCOUNT_ID` | нет | Account ID для Cloudflare Workers AI |
 | `CLOUDFLARE_API_TOKEN` | нет | API-токен с правами Workers AI Read/Edit |

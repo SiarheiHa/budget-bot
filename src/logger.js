@@ -10,6 +10,21 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+/**
+ * Проверяет, включены ли debug-логи.
+ * Переменные окружения — строки, поэтому "false" сам по себе truthy.
+ * @param {string|undefined|null} value
+ * @returns {boolean}
+ */
+export function isDebugEnabled(value = process.env.DEBUG) {
+  if (value === undefined || value === null) return false;
+
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === "") return false;
+
+  return !["0", "false", "no", "off"].includes(normalized);
+}
+
 export const logger = {
   info: (...args) => {
     console.log(`${nowIso()} [INFO]`, ...args);
@@ -21,8 +36,7 @@ export const logger = {
     console.error(`${nowIso()} [ERROR]`, ...args);
   },
   debug: (...args) => {
-    // Отдельный debug — можно включать/отключать по переменной окружения в будущем
-    if (process.env.DEBUG) {
+    if (isDebugEnabled()) {
       console.log(`${nowIso()} [DEBUG]`, ...args);
     }
   },
