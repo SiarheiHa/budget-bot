@@ -1,5 +1,17 @@
-import { formatAmountValue } from "../amount.js";
 import {
+  applyAmountAction,
+  formatAmountDraft,
+  formatAmountValue,
+  parseAmountCallback,
+} from "../amount.js";
+import {
+  buildCalendarText,
+  parseCalendarCallback,
+  resolveCalendarDate,
+} from "../calendar.js";
+import {
+  createAmountKeyboard,
+  createCalendarKeyboard,
   createTransactionDeleteKeyboard,
   createTransactionEditMenuKeyboard,
   createTransactionEditPickKeyboard,
@@ -16,6 +28,9 @@ import {
   parseDateDDMMYYYY,
   safeDeleteMessage,
 } from "../utils.js";
+
+const TX_AMOUNT_PREFIX = "tx:amt";
+const TX_CALENDAR_PREFIX = "tx:cal";
 
 const EDITABLE_TEXT_FIELDS = new Set(["date", "amount", "note"]);
 const EDITABLE_FIELDS = new Set([
@@ -37,7 +52,12 @@ function formatTransactionText(transaction, { title = true } = {}) {
     : MESSAGES.AI.UNKNOWN;
 
   const lines = [];
-  if (title) lines.push(MESSAGES.TRANSACTION_VIEW.TITLE, "");
+  if (title) {
+    lines.push(
+      `${MESSAGES.TRANSACTION_VIEW.TITLE} ${transaction.row}`,
+      ""
+    );
+  }
   lines.push(
     `${MESSAGES.AI.DATE_LABEL}: ${transaction.date || MESSAGES.AI.UNKNOWN}`,
     `${MESSAGES.AI.AMOUNT_LABEL}: ${amount || MESSAGES.AI.UNKNOWN}`,
@@ -135,26 +155,136 @@ async function getEditCategories(deps) {
     .map((category) => category.name);
 }
 
-function promptForField(field, error = "") {
-  const prompts = {
-    amount: MESSAGES.TRANSACTION_VIEW.EDIT_AMOUNT_PROMPT,
-    date: MESSAGES.TRANSACTION_VIEW.EDIT_DATE_PROMPT,
-    note: MESSAGES.TRANSACTION_VIEW.EDIT_NOTE_PROMPT,
-  };
+function amountToDraft(amount) {
+  return Number.isFinite(amount) ? String(amount).replace(".", ",") : "";
+}
 
-  return error ? `${error}\n\n${prompts[field]}` : prompts[field];
+function getCalendarParts(transaction) {
+  const date = parseDateDDMMYYYY(transaction.date) || new Date();
+  return { year: date.getFullYear(), month: date.getMonth() + 1 };
+}
+
+function withError(error, text) {
+  return error ? `${error}\n\n${text}` : text;
+}
+
+async function renderAmountEditor(
+  bot,
+  deps,
+  chatId,
+  row,
+  messageId,
+  { error = "" } = {}
+) {
+  const state = deps.state.get(chatId);
+  if (!state || state.step !== "tx-edit" || state.txField !== "amount") {
+    return;
+  }
+
+  const text = withError(
+    error,
+    [
+      MESSAGES.ADD_TRANSACTION.AMOUNT_PROMPT,
+      "",
+      `${MESSAGES.ADD_TRANSACTION.AMOUNT_SELECTED} ${formatAmountDraft(
+        state.txAmountDraft || ""
+      )}`,
+    ].join("\n")
+  );
+
+  const keyboard = createAmountKeyboard({
+    prefix: TX_AMOUNT_PREFIX,
+    allowSign: false,
+    footer: [
+      [
+        { text: "Назад", callback_data: `tx:edit:${row}` },
+        { text: "❌ Отмена", callback_data: `tx:edit-cancel:${row}` },
+      ],
+    ],
+  });
+
+  await editOrSend(bot, deps.logger, chatId, messageId, text, keyboard);
+}
+
+async function renderDateEditor(
+  bot,
+  deps,
+  chatId,
+  row,
+  messageId,
+  year,
+  month,
+  { error = "" } = {}
+) {
+  const text = withError(
+    error,
+    [
+      MESSAGES.ADD_TRANSACTION.DATE_PROMPT,
+      "",
+      buildCalendarText(year, month),
+    ].join("\n")
+  );
+
+  const keyboard = createCalendarKeyboard(year, month, {
+    prefix: TX_CALENDAR_PREFIX,
+    footer: [
+      [
+        { text: "Назад", callback_data: `tx:edit:${row}` },
+        { text: "❌ Отмена", callback_data: `tx:edit-cancel:${row}` },
+      ],
+    ],
+  });
+
+  await editOrSend(bot, deps.logger, chatId, messageId, text, keyboard);
 }
 
 async function showEditPrompt(
   bot,
   deps,
   chatId,
-  row,
+  transaction,
   field,
   messageId,
   { error = "" } = {}
 ) {
   if (!EDITABLE_FIELDS.has(field)) return {};
+
+  const row = transaction.row;
+
+  if (field === "amount") {
+    deps.state.set(chatId, {
+      step: "tx-edit",
+      txRow: row,
+      txField: field,
+      txAmountDraft: amountToDraft(transaction.amount),
+      cardMessageId: messageId,
+    });
+    await renderAmountEditor(bot, deps, chatId, row, messageId, { error });
+    return {};
+  }
+
+  if (field === "date") {
+    const { year, month } = getCalendarParts(transaction);
+    deps.state.set(chatId, {
+      step: "tx-edit",
+      txRow: row,
+      txField: field,
+      txCalendarYear: year,
+      txCalendarMonth: month,
+      cardMessageId: messageId,
+    });
+    await renderDateEditor(
+      bot,
+      deps,
+      chatId,
+      row,
+      messageId,
+      year,
+      month,
+      { error }
+    );
+    return {};
+  }
 
   const items =
     field === "category"
@@ -183,7 +313,7 @@ async function showEditPrompt(
     ? field === "category"
       ? MESSAGES.TRANSACTION_VIEW.EDIT_CATEGORY_PROMPT
       : MESSAGES.TRANSACTION_VIEW.EDIT_WALLET_PROMPT
-    : promptForField(field, error);
+    : withError(error, MESSAGES.TRANSACTION_VIEW.EDIT_NOTE_PROMPT);
   const keyboard = items
     ? createTransactionEditPickKeyboard(row, field, items)
     : createTransactionEditPromptKeyboard(row);
@@ -353,9 +483,15 @@ export async function handleTransactionText(bot, deps, msg) {
   if (field === "date") {
     const date = parseDateDDMMYYYY(text);
     if (!date) {
-      await showEditPrompt(bot, deps, chatId, row, field, cardMessageId, {
-        error: MESSAGES.TRANSACTION_VIEW.EDIT_DATE_INVALID,
-      });
+      await showEditPrompt(
+        bot,
+        deps,
+        chatId,
+        transaction,
+        field,
+        cardMessageId,
+        { error: MESSAGES.TRANSACTION_VIEW.EDIT_DATE_INVALID }
+      );
       return true;
     }
 
@@ -373,9 +509,15 @@ export async function handleTransactionText(bot, deps, msg) {
   if (field === "amount") {
     const amount = parseAmount(text);
     if (Number.isNaN(amount) || amount === 0) {
-      await showEditPrompt(bot, deps, chatId, row, field, cardMessageId, {
-        error: MESSAGES.TRANSACTION_VIEW.EDIT_AMOUNT_INVALID,
-      });
+      await showEditPrompt(
+        bot,
+        deps,
+        chatId,
+        transaction,
+        field,
+        cardMessageId,
+        { error: MESSAGES.TRANSACTION_VIEW.EDIT_AMOUNT_INVALID }
+      );
       return true;
     }
 
@@ -402,6 +544,102 @@ export async function handleTransactionText(bot, deps, msg) {
   );
 }
 
+async function handleTransactionAmountAction(bot, deps, chatId, data) {
+  const action = parseAmountCallback(data, TX_AMOUNT_PREFIX);
+  if (!action) return null;
+
+  const state = deps.state.get(chatId);
+  if (!state || state.step !== "tx-edit" || state.txField !== "amount") {
+    return {};
+  }
+
+  if (action.type === "confirm") {
+    const amount = parseAmount(state.txAmountDraft || "");
+    if (Number.isNaN(amount) || amount === 0) {
+      return { alert: MESSAGES.ADD_TRANSACTION.AMOUNT_EMPTY };
+    }
+
+    const transaction = await getTransaction(deps, state.txRow);
+    if (!transaction) {
+      deps.state.del(chatId);
+      return { alert: MESSAGES.TRANSACTION_VIEW.NOT_FOUND };
+    }
+
+    return saveField(
+      bot,
+      deps,
+      chatId,
+      transaction,
+      "amount",
+      amount,
+      state.cardMessageId
+    );
+  }
+
+  const currentDraft = state.txAmountDraft || "";
+  const nextDraft = applyAmountAction(currentDraft, action);
+  if (nextDraft === currentDraft) {
+    return action.type === "digit"
+      ? { alert: MESSAGES.ADD_TRANSACTION.AMOUNT_LIMIT }
+      : {};
+  }
+
+  deps.state.update(chatId, { txAmountDraft: nextDraft });
+  await renderAmountEditor(
+    bot,
+    deps,
+    chatId,
+    state.txRow,
+    state.cardMessageId
+  );
+  return {};
+}
+
+async function handleTransactionCalendarAction(bot, deps, chatId, data) {
+  const action = parseCalendarCallback(data, TX_CALENDAR_PREFIX);
+  if (!action) return null;
+  if (action.type === "noop") return {};
+
+  const state = deps.state.get(chatId);
+  if (!state || state.step !== "tx-edit" || state.txField !== "date") {
+    return {};
+  }
+
+  if (action.type === "nav") {
+    deps.state.update(chatId, {
+      txCalendarYear: action.year,
+      txCalendarMonth: action.month,
+    });
+    await renderDateEditor(
+      bot,
+      deps,
+      chatId,
+      state.txRow,
+      state.cardMessageId,
+      action.year,
+      action.month
+    );
+    return {};
+  }
+
+  const transaction = await getTransaction(deps, state.txRow);
+  if (!transaction) {
+    deps.state.del(chatId);
+    return { alert: MESSAGES.TRANSACTION_VIEW.NOT_FOUND };
+  }
+
+  const date = resolveCalendarDate(action);
+  return saveField(
+    bot,
+    deps,
+    chatId,
+    transaction,
+    "date",
+    formatDateToDisplay(date),
+    state.cardMessageId
+  );
+}
+
 export async function handleTransactionCallback(
   bot,
   deps,
@@ -409,6 +647,14 @@ export async function handleTransactionCallback(
   data,
   messageId
 ) {
+  if (data.startsWith(`${TX_AMOUNT_PREFIX}:`)) {
+    return handleTransactionAmountAction(bot, deps, chatId, data);
+  }
+
+  if (data.startsWith(`${TX_CALENDAR_PREFIX}:`)) {
+    return handleTransactionCalendarAction(bot, deps, chatId, data);
+  }
+
   const { logger } = deps;
   const parts = data.split(":");
   if (parts[0] !== "tx") return {};
@@ -507,7 +753,14 @@ export async function handleTransactionCallback(
       return { alert: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED };
     }
 
-    return showEditPrompt(bot, deps, chatId, row, field, messageId);
+    return showEditPrompt(
+      bot,
+      deps,
+      chatId,
+      transaction,
+      field,
+      messageId
+    );
   }
 
   if (action === "edit-pick") {

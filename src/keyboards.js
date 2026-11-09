@@ -226,8 +226,8 @@ export function createTransactionKeyboard({
 
   if (nav) {
     rows.push([
-      { text: "← Предыдущая", callback_data: `tx:prev:${row}` },
-      { text: "Следующая →", callback_data: `tx:next:${row}` },
+      { text: "⬅️ Предыдущая", callback_data: `tx:prev:${row}` },
+      { text: "Следующая ➡️", callback_data: `tx:next:${row}` },
     ]);
   }
 

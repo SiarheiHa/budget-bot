@@ -82,7 +82,7 @@ test("transactionHandler: /last показывает последнюю тран
 
   assert.equal(bot.sent.length, 1);
   const message = bot.sent[0];
-  assert.match(message.text, /Последняя транзакция/);
+  assert.match(message.text, /Транзакция 12/);
   assert.match(message.text, /09\.11\.2026/);
   assert.match(message.text, /250/);
   assert.match(message.text, /Еда/);
@@ -96,7 +96,7 @@ test("transactionHandler: кнопка меню открывает карточ�
   await emitText(bot, "Последняя транзакция");
 
   assert.equal(bot.sent.length, 1);
-  assert.match(bot.sent[0].text, /Последняя транзакция/);
+  assert.match(bot.sent[0].text, /Транзакция 12/);
 });
 
 test("transactionHandler: пустая таблица показывает сообщение", async () => {
@@ -179,7 +179,7 @@ test("transactionHandler: отмена удаления возвращает к�
 
   assert.equal(deletedRows.length, 0);
   const edit = bot.edits.at(-1);
-  assert.match(edit.text, /Последняя транзакция/);
+  assert.match(edit.text, /Транзакция 12/);
   assert.equal(edit.form.reply_markup.inline_keyboard.at(-1)[0].callback_data, "tx:close:12");
 });
 
@@ -215,17 +215,25 @@ test("transactionHandler: изменение суммы сохраняет и о
 
   await emitCallback(bot, "tx:edit-field:12:amount", 55);
   assert.equal(deps.store.get("1").txField, "amount");
-  assert.match(bot.edits.at(-1).text, /Введите новую сумму/);
+  assert.equal(deps.store.get("1").txAmountDraft, "250");
+  assert.match(bot.edits.at(-1).text, /Введите сумму/);
+  assert.ok(
+    bot.edits
+      .at(-1)
+      .form.reply_markup.inline_keyboard.flat()
+      .some((button) => button.callback_data === "tx:amt:ok")
+  );
 
-  const userMessage = await emitMessage(bot, "300");
+  await emitCallback(bot, "tx:amt:clear", 55);
+  await emitCallback(bot, "tx:amt:d:3", 55);
+  await emitCallback(bot, "tx:amt:d:0", 55);
+  await emitCallback(bot, "tx:amt:d:0", 55);
+  await emitCallback(bot, "tx:amt:ok", 55);
 
   assert.deepEqual(updates, [
     { row: 12, data: { ...TRANSACTION, amount: 300 } },
   ]);
   assert.equal(deps.store.has("1"), false);
-  assert.ok(
-    bot.deleted.some((item) => item.messageId === userMessage.message_id)
-  );
   assert.match(bot.edits.at(-1).text, /✅ Изменено/);
   assert.match(bot.edits.at(-1).text, /300/);
 });
@@ -243,13 +251,22 @@ test("transactionHandler: неверная сумма оставляет реж�
   assert.match(bot.edits.at(-1).text, /Неверная сумма/);
 });
 
-test("transactionHandler: изменение даты форматирует значение", async () => {
-  const { bot, updates } = setup();
+test("transactionHandler: изменение даты идёт через календарь", async () => {
+  const { bot, deps, updates } = setup();
 
   await emitCallback(bot, "tx:edit:12", 55);
   await emitCallback(bot, "tx:edit-field:12:date", 55);
 
-  await emitMessage(bot, "10.11.2026");
+  assert.equal(deps.store.get("1").txField, "date");
+  assert.match(bot.edits.at(-1).text, /Ноябрь 2026/);
+  assert.ok(
+    bot.edits
+      .at(-1)
+      .form.reply_markup.inline_keyboard.flat()
+      .some((button) => button.callback_data === "tx:cal:day:2026-11-10")
+  );
+
+  await emitCallback(bot, "tx:cal:day:2026-11-10", 55);
 
   assert.equal(updates[0].data.date, "10.11.2026");
   assert.match(bot.edits.at(-1).text, /10\.11\.2026/);
@@ -301,7 +318,7 @@ test("transactionHandler: отмена редактирования возвра
   await emitCallback(bot, "tx:edit-cancel:12", 55);
 
   assert.equal(deps.store.has("1"), false);
-  assert.match(bot.edits.at(-1).text, /Последняя транзакция/);
+  assert.match(bot.edits.at(-1).text, /Транзакция 12/);
 });
 
 test("transactionHandler: перевод нельзя редактировать", async () => {
@@ -342,6 +359,12 @@ test("transactionHandler: карточка показывает кнопки н�
   const callbacks = keyboardCallbacks(bot);
   assert.ok(callbacks.includes("tx:prev:12"));
   assert.ok(callbacks.includes("tx:next:12"));
+  assert.deepEqual(
+    bot.sent
+      .at(-1)
+      .options.reply_markup.inline_keyboard[0].map((button) => button.text),
+    ["⬅️ Предыдущая", "Следующая ➡️"]
+  );
 });
 
 test("transactionHandler: предыдущая транзакция открывается в карточке", async () => {
