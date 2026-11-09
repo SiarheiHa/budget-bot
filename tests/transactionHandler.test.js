@@ -236,6 +236,32 @@ test("transactionHandler: изменение суммы сохраняет и о
   assert.equal(deps.store.has("1"), false);
   assert.match(bot.edits.at(-1).text, /✅ Изменено/);
   assert.match(bot.edits.at(-1).text, /300/);
+  assert.ok(
+    bot.edits
+      .at(-1)
+      .form.reply_markup.inline_keyboard.flat()
+      .some((button) => button.callback_data === "tx:close-edited:12")
+  );
+});
+
+test("transactionHandler: изменённая карточка остаётся после закрытия", async () => {
+  const { bot } = setup();
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-field:12:amount", 55);
+  await emitCallback(bot, "tx:amt:clear", 55);
+  await emitCallback(bot, "tx:amt:d:1", 55);
+  await emitCallback(bot, "tx:amt:ok", 55);
+
+  assert.match(bot.edits.at(-1).text, /✅ Изменено/);
+
+  await emitCallback(bot, "tx:close-edited:12", 55);
+
+  assert.equal(bot.deleted.length, 0);
+  const markup = bot.edits.at(-1);
+  assert.equal(markup.type, "markup");
+  assert.deepEqual(markup.replyMarkup, { inline_keyboard: [] });
+  assert.equal(markup.form.message_id, 55);
 });
 
 test("transactionHandler: неверная сумма оставляет режим редактирования", async () => {

@@ -124,8 +124,8 @@ read-only. AI-callback сверяют `message_id` с `aiMessageId`, чтобы 
 - `v1:cancel` — отмена через общий `handleCancel`.
 - `ai:edit`, `ai:field:*`, `ai:pick:*`, `ai:amt:*`, `ai:cal:*`, `ai:back`,
   `ai:confirm`, `ai:cancel` — AI-карточка и редакторы полей.
-- `tx:prev:<row>`, `tx:next:<row>`, `tx:view:<row>`, `tx:close:<row>` —
-  навигация и закрытие карточки транзакции.
+- `tx:prev:<row>`, `tx:next:<row>`, `tx:view:<row>`, `tx:close:<row>`,
+  `tx:close-edited:<row>` — навигация и закрытие карточки транзакции.
 - `tx:edit:<row>`, `tx:edit-field:<row>:<field>`,
   `tx:edit-pick:<row>:<field>:<index>`, `tx:edit-cancel:<row>` — редактирование.
 - `tx:amt:*` и `tx:cal:*` — inline-редакторы суммы и даты.
@@ -147,6 +147,9 @@ read-only. AI-callback сверяют `message_id` с `aiMessageId`, чтобы 
 
 Сумма редактируется inline-клавиатурой (`tx:amt`), дата — inline-календарём
 (`tx:cal`), категория и кошелёк — выбором из списка, примечание — текстом.
+После успешной правки кнопка закрытия получает callback `tx:close-edited`:
+она убирает inline-клавиатуру, но оставляет карточку с `✅ Изменено.` в чате.
+Обычная карточка по `Закрыть` удаляется как раньше.
 Перед удалением показывается подтверждение. Удаление использует
 `DeleteDimension` по `sheetId` листа `Transactions`. Редактирование пишет только
 `A`, `C`, `E:G`; `B` и `D` с формулами не трогаются. Переводы (категория с типом

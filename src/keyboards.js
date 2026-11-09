@@ -221,6 +221,7 @@ export function createTransactionKeyboard({
   canEdit = false,
   canDelete = true,
   nav = false,
+  edited = false,
 } = {}) {
   const rows = [];
 
@@ -240,7 +241,12 @@ export function createTransactionKeyboard({
   }
   if (actions.length > 0) rows.push(actions);
 
-  rows.push([{ text: "❌ Закрыть", callback_data: `tx:close:${row}` }]);
+  rows.push([
+    {
+      text: "❌ Закрыть",
+      callback_data: `tx:${edited ? "close-edited" : "close"}:${row}`,
+    },
+  ]);
 
   return {
     reply_markup: {

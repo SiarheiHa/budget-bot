@@ -26,6 +26,7 @@ import {
   formatDateToDisplay,
   parseAmount,
   parseDateDDMMYYYY,
+  removeInlineKeyboard,
   safeDeleteMessage,
 } from "../utils.js";
 
@@ -90,7 +91,7 @@ async function isTransfer(deps, transaction) {
   }
 }
 
-function buildView(transaction, transfer) {
+function buildView(transaction, transfer, { edited = false } = {}) {
   let text = formatTransactionText(transaction);
   if (transfer) {
     text += `\n\n${MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED}`;
@@ -101,6 +102,7 @@ function buildView(transaction, transfer) {
     canEdit: !transfer,
     canDelete: !transfer,
     nav: true,
+    edited,
   });
 
   return { text, keyboard };
@@ -130,10 +132,10 @@ async function renderTransaction(
   chatId,
   transaction,
   messageId,
-  { prefix = "" } = {}
+  { prefix = "", edited = false } = {}
 ) {
   const transfer = await isTransfer(deps, transaction);
-  const { text, keyboard } = buildView(transaction, transfer);
+  const { text, keyboard } = buildView(transaction, transfer, { edited });
   const fullText = prefix ? `${prefix}\n\n${text}` : text;
   return editOrSend(
     bot,
@@ -367,7 +369,7 @@ async function saveField(
       chatId,
       updated,
       messageId,
-      { prefix: MESSAGES.TRANSACTION_VIEW.UPDATED }
+      { prefix: MESSAGES.TRANSACTION_VIEW.UPDATED, edited: true }
     );
     return {};
   } catch (error) {
@@ -663,8 +665,13 @@ export async function handleTransactionCallback(
   const row = Number(rawRow);
   if (!Number.isInteger(row)) return {};
 
-  if (action === "close") {
+  if (action === "close" || action === "close-edited") {
     deps.state.del(chatId);
+    if (action === "close-edited") {
+      await removeInlineKeyboard(bot, logger, chatId, messageId);
+      return {};
+    }
+
     await safeDeleteMessage(bot, logger, chatId, messageId);
     await showMainKeyboard(bot, chatId, MESSAGES.COMMON.WHAT_NEXT);
     return {};
