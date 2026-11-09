@@ -4,6 +4,7 @@ import { createSheets } from "./sheets.js";
 import { logger } from "./logger.js";
 import { registerStartHandler } from "./handlers/startHandler.js";
 import { registerBalanceHandler } from "./handlers/balanceHandler.js";
+import { registerTransactionHandler } from "./handlers/transactionHandler.js";
 import { registerAddHandler } from "./handlers/addHandler.js";
 import { registerCancelHandler } from "./handlers/cancelHandler.js";
 import { registerCallbackHandler } from "./handlers/callbackHandler.js";
@@ -59,6 +60,7 @@ const deps = {
 function registerHandlers() {
   registerStartHandler(bot, deps);
   registerBalanceHandler(bot, deps);
+  registerTransactionHandler(bot, deps);
   registerCancelHandler(bot, deps);
   registerCallbackHandler(bot, deps);
   if (config.aiParsingEnabled) {

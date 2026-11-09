@@ -1,0 +1,189 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { registerCallbackHandler } from "../src/handlers/callbackHandler.js";
+import { registerTransactionHandler } from "../src/handlers/transactionHandler.js";
+import { MESSAGES } from "../src/messages.js";
+import { createBot, createDeps, emitText } from "./helpers/fakes.js";
+
+const TRANSACTION = {
+  row: 12,
+  date: "09.11.2026",
+  amount: 250,
+  category: "Еда",
+  wallet: "Наличные",
+  note: "кофе",
+};
+
+function setup(options = {}) {
+  const bot = createBot();
+  const deletedRows = [];
+  const transaction = "transaction" in options ? options.transaction : TRANSACTION;
+  const deps = createDeps(options.state || {}, {
+    sheets: {
+      getLastTransaction: async () => transaction,
+      getTransaction: async (row) =>
+        transaction === null ? null : { ...TRANSACTION, row },
+      getCategories: async () =>
+        options.categories || [
+          { name: "Еда", type: "expense" },
+          { name: "Перевод", type: "transfer" },
+        ],
+      deleteTransaction: async (row) => {
+        deletedRows.push(row);
+      },
+      ...(options.sheets || {}),
+    },
+  });
+
+  registerTransactionHandler(bot, deps);
+  registerCallbackHandler(bot, deps);
+
+  return { bot, deps, deletedRows };
+}
+
+async function emitCallback(bot, data, messageId = 55) {
+  const handler = bot.listeners("callback_query")[0];
+  assert.equal(typeof handler, "function");
+
+  await handler({
+    id: "q1",
+    data,
+    message: {
+      message_id: messageId,
+      chat: { id: 1 },
+    },
+    from: { id: 1 },
+  });
+}
+
+function keyboardCallbacks(bot) {
+  const message = bot.sent.at(-1);
+  return message.options.reply_markup.inline_keyboard
+    .flat()
+    .map((button) => button.callback_data);
+}
+
+test("transactionHandler: /last показывает последнюю транзакцию", async () => {
+  const { bot } = setup();
+
+  await emitText(bot, "/last");
+
+  assert.equal(bot.sent.length, 1);
+  const message = bot.sent[0];
+  assert.match(message.text, /Последняя транзакция/);
+  assert.match(message.text, /09\.11\.2026/);
+  assert.match(message.text, /250/);
+  assert.match(message.text, /Еда/);
+  assert.ok(keyboardCallbacks(bot).includes("tx:delete:12"));
+  assert.ok(keyboardCallbacks(bot).includes("tx:close:12"));
+});
+
+test("transactionHandler: кнопка меню открывает карточку", async () => {
+  const { bot } = setup();
+
+  await emitText(bot, "Последняя транзакция");
+
+  assert.equal(bot.sent.length, 1);
+  assert.match(bot.sent[0].text, /Последняя транзакция/);
+});
+
+test("transactionHandler: пустая таблица показывает сообщение", async () => {
+  const { bot } = setup({ transaction: null });
+
+  await emitText(bot, "/last");
+
+  assert.equal(bot.sent.length, 1);
+  assert.equal(bot.sent[0].text, MESSAGES.TRANSACTION_VIEW.EMPTY);
+  assert.deepEqual(
+    bot.sent[0].options.reply_markup.keyboard,
+    [[
+      "Добавить транзакцию",
+    ], ["Показать баланс"], ["Последняя транзакция"]]
+  );
+});
+
+test("transactionHandler: активный диалог блокирует просмотр", async () => {
+  let called = false;
+  const { bot } = setup({
+    state: { 1: { step: "date" } },
+    sheets: {
+      getLastTransaction: async () => {
+        called = true;
+        return TRANSACTION;
+      },
+    },
+  });
+
+  await emitText(bot, "/last");
+
+  assert.equal(called, false);
+  assert.equal(bot.sent[0].text, MESSAGES.TRANSACTION_VIEW.BUSY);
+});
+
+test("transactionHandler: перевод нельзя удалить", async () => {
+  const { bot } = setup({
+    transaction: { ...TRANSACTION, category: "Перевод" },
+  });
+
+  await emitText(bot, "/last");
+
+  assert.match(
+    bot.sent[0].text,
+    /Редактирование и удаление переводов пока не поддерживается/
+  );
+  assert.deepEqual(keyboardCallbacks(bot), ["tx:close:12"]);
+});
+
+test("transactionHandler: удаление требует подтверждения", async () => {
+  const { bot, deletedRows } = setup();
+  const confirmId = 55;
+
+  await emitCallback(bot, "tx:delete:12", confirmId);
+
+  assert.equal(deletedRows.length, 0);
+  const edit = bot.edits.at(-1);
+  assert.match(edit.text, /Удалить эту транзакцию/);
+  assert.equal(edit.form.message_id, confirmId);
+  assert.deepEqual(
+    edit.form.reply_markup.inline_keyboard.flat().map((b) => b.callback_data),
+    ["tx:confirm-delete:12", "tx:cancel-delete:12"]
+  );
+
+  await emitCallback(bot, "tx:confirm-delete:12", confirmId);
+
+  assert.deepEqual(deletedRows, [12]);
+  assert.equal(bot.edits.at(-1).text, MESSAGES.TRANSACTION_VIEW.DELETED);
+  assert.match(bot.sent.at(-1).text, /Что дальше/);
+});
+
+test("transactionHandler: отмена удаления возвращает карточку", async () => {
+  const { bot, deletedRows } = setup();
+
+  await emitCallback(bot, "tx:cancel-delete:12", 55);
+
+  assert.equal(deletedRows.length, 0);
+  const edit = bot.edits.at(-1);
+  assert.match(edit.text, /Последняя транзакция/);
+  assert.equal(edit.form.reply_markup.inline_keyboard.at(-1)[0].callback_data, "tx:close:12");
+});
+
+test("transactionHandler: закрытие удаляет карточку", async () => {
+  const { bot } = setup();
+
+  await emitCallback(bot, "tx:close:12", 77);
+
+  assert.deepEqual(bot.deleted, [{ chatId: 1, messageId: 77 }]);
+  assert.match(bot.sent.at(-1).text, /Что дальше/);
+});
+
+test("transactionHandler: устаревшая строка показывает ошибку", async () => {
+  const { bot } = setup({ transaction: null });
+
+  await emitCallback(bot, "tx:delete:12", 55);
+
+  assert.equal(bot.deleted.length, 1);
+  assert.deepEqual(bot.answers.at(-1).options, {
+    text: MESSAGES.TRANSACTION_VIEW.NOT_FOUND,
+    show_alert: true,
+  });
+});

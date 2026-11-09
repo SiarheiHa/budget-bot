@@ -8,7 +8,11 @@ import {
 
 export const mainKeyboard = {
   reply_markup: {
-    keyboard: [["Добавить транзакцию"], ["Показать баланс"]],
+    keyboard: [
+      ["Добавить транзакцию"],
+      ["Показать баланс"],
+      ["Последняя транзакция"],
+    ],
     resize_keyboard: true,
     one_time_keyboard: false,
   },
@@ -207,6 +211,52 @@ export function createCalendarKeyboard(year, month, options = {}) {
           { text: "Вчера", callback_data: `${prefix}:yesterday` },
         ],
         ...footer,
+      ],
+    },
+  };
+}
+
+export function createTransactionKeyboard({
+  row,
+  canEdit = false,
+  canDelete = true,
+  nav = false,
+} = {}) {
+  const rows = [];
+
+  if (nav) {
+    rows.push([
+      { text: "← Предыдущая", callback_data: `tx:prev:${row}` },
+      { text: "Следующая →", callback_data: `tx:next:${row}` },
+    ]);
+  }
+
+  const actions = [];
+  if (canEdit) {
+    actions.push({ text: "✏️ Изменить", callback_data: `tx:edit:${row}` });
+  }
+  if (canDelete) {
+    actions.push({ text: "🗑 Удалить", callback_data: `tx:delete:${row}` });
+  }
+  if (actions.length > 0) rows.push(actions);
+
+  rows.push([{ text: "❌ Закрыть", callback_data: `tx:close:${row}` }]);
+
+  return {
+    reply_markup: {
+      inline_keyboard: rows,
+    },
+  };
+}
+
+export function createTransactionDeleteKeyboard(row) {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Удалить", callback_data: `tx:confirm-delete:${row}` },
+          { text: "❌ Отмена", callback_data: `tx:cancel-delete:${row}` },
+        ],
       ],
     },
   };

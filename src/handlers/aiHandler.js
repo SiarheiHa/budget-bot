@@ -470,7 +470,8 @@ async function handleFreeText(bot, deps, msg) {
     text.startsWith("/") ||
     text === "❌ Отмена" ||
     text === "Добавить транзакцию" ||
-    text === "Показать баланс"
+    text === "Показать баланс" ||
+    text === "Последняя транзакция"
   ) {
     return;
   }

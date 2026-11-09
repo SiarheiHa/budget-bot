@@ -544,7 +544,13 @@ export function registerAddHandler(bot, deps) {
     if (text === "❌ Отмена") return;
 
     // Кнопки главного меню обрабатываются своими хендлерами
-    if (text === "Добавить транзакцию" || text === "Показать баланс") return;
+    if (
+      text === "Добавить транзакцию" ||
+      text === "Показать баланс" ||
+      text === "Последняя транзакция"
+    ) {
+      return;
+    }
 
     try {
       if (userState.step === "date") {

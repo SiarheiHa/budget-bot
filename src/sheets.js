@@ -502,6 +502,7 @@ export function createSheets({ config, logger, valuesApi } = {}) {
     appendTransfer,
     getBalances,
     getCategories,
+    getTransaction: getTransactionAt,
     getLastTransaction,
     getNeighborTransaction,
     deleteTransaction,

@@ -9,6 +9,7 @@ import {
   showCalendarStep,
 } from "./addHandler.js";
 import { handleCancel } from "./cancelHandler.js";
+import { handleTransactionCallback } from "./transactionHandler.js";
 import { handleAiCallback } from "./aiHandler.js";
 
 function isStaleManualState(userState, step, messageId) {
@@ -55,6 +56,20 @@ export function registerCallbackHandler(bot, deps) {
         const cancellation = handleCancel(bot, deps, { chat: { id: chatId } });
         await answer();
         await cancellation;
+        return;
+      }
+
+      if (data.startsWith("tx:")) {
+        const result = await handleTransactionCallback(
+          bot,
+          deps,
+          chatId,
+          data,
+          query.message?.message_id
+        );
+        await answer(
+          result?.alert ? { text: result.alert, show_alert: true } : undefined
+        );
         return;
       }
 
