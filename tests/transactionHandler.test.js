@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { registerCallbackHandler } from "../src/handlers/callbackHandler.js";
 import { registerTransactionHandler } from "../src/handlers/transactionHandler.js";
 import { MESSAGES } from "../src/messages.js";
-import { createBot, createDeps, emitText } from "./helpers/fakes.js";
+import {
+  createBot,
+  createDeps,
+  emitMessage,
+  emitText,
+} from "./helpers/fakes.js";
 
 const TRANSACTION = {
   row: 12,
@@ -17,12 +22,14 @@ const TRANSACTION = {
 function setup(options = {}) {
   const bot = createBot();
   const deletedRows = [];
-  const transaction = "transaction" in options ? options.transaction : TRANSACTION;
+  const updates = [];
+  const transaction =
+    "transaction" in options ? options.transaction : TRANSACTION;
   const deps = createDeps(options.state || {}, {
     sheets: {
       getLastTransaction: async () => transaction,
       getTransaction: async (row) =>
-        transaction === null ? null : { ...TRANSACTION, row },
+        transaction === null ? null : { ...transaction, row },
       getCategories: async () =>
         options.categories || [
           { name: "Еда", type: "expense" },
@@ -31,6 +38,9 @@ function setup(options = {}) {
       deleteTransaction: async (row) => {
         deletedRows.push(row);
       },
+      updateTransaction: async (row, data) => {
+        updates.push({ row, data });
+      },
       ...(options.sheets || {}),
     },
   });
@@ -38,7 +48,7 @@ function setup(options = {}) {
   registerTransactionHandler(bot, deps);
   registerCallbackHandler(bot, deps);
 
-  return { bot, deps, deletedRows };
+  return { bot, deps, deletedRows, updates };
 }
 
 async function emitCallback(bot, data, messageId = 55) {
@@ -186,4 +196,134 @@ test("transactionHandler: устаревшая строка показывает
     text: MESSAGES.TRANSACTION_VIEW.NOT_FOUND,
     show_alert: true,
   });
+});
+
+test("transactionHandler: изменение суммы сохраняет и обновляет карточку", async () => {
+  const { bot, deps, updates } = setup();
+
+  await emitCallback(bot, "tx:edit:12", 55);
+
+  assert.equal(deps.store.get("1").step, "tx-edit");
+  assert.equal(deps.store.get("1").txField, null);
+  assert.match(bot.edits.at(-1).text, /Что изменить/);
+
+  await emitCallback(bot, "tx:edit-field:12:amount", 55);
+  assert.equal(deps.store.get("1").txField, "amount");
+  assert.match(bot.edits.at(-1).text, /Введите новую сумму/);
+
+  const userMessage = await emitMessage(bot, "300");
+
+  assert.deepEqual(updates, [
+    { row: 12, data: { ...TRANSACTION, amount: 300 } },
+  ]);
+  assert.equal(deps.store.has("1"), false);
+  assert.ok(
+    bot.deleted.some((item) => item.messageId === userMessage.message_id)
+  );
+  assert.match(bot.edits.at(-1).text, /✅ Изменено/);
+  assert.match(bot.edits.at(-1).text, /300/);
+});
+
+test("transactionHandler: неверная сумма оставляет режим редактирования", async () => {
+  const { bot, deps, updates } = setup();
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-field:12:amount", 55);
+
+  await emitMessage(bot, "abc");
+
+  assert.equal(updates.length, 0);
+  assert.equal(deps.store.get("1").txField, "amount");
+  assert.match(bot.edits.at(-1).text, /Неверная сумма/);
+});
+
+test("transactionHandler: изменение даты форматирует значение", async () => {
+  const { bot, updates } = setup();
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-field:12:date", 55);
+
+  await emitMessage(bot, "10.11.2026");
+
+  assert.equal(updates[0].data.date, "10.11.2026");
+  assert.match(bot.edits.at(-1).text, /10\.11\.2026/);
+});
+
+test("transactionHandler: '-' очищает примечание", async () => {
+  const { bot, updates } = setup();
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-field:12:note", 55);
+
+  await emitMessage(bot, "-");
+
+  assert.equal(updates[0].data.note, "");
+});
+
+test("transactionHandler: категория выбирается inline-кнопкой", async () => {
+  const { bot, deps, updates } = setup({
+    categories: [
+      { name: "Еда", type: "expense" },
+      { name: "Транспорт", type: "expense" },
+      { name: "Перевод", type: "transfer" },
+    ],
+  });
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-field:12:category", 55);
+
+  assert.equal(deps.store.get("1").txField, "category");
+  const callbacks = bot.edits
+    .at(-1)
+    .form.reply_markup.inline_keyboard.flat()
+    .map((button) => button.callback_data);
+  assert.deepEqual(callbacks.slice(0, 2), [
+    "tx:edit-pick:12:category:0",
+    "tx:edit-pick:12:category:1",
+  ]);
+
+  await emitCallback(bot, "tx:edit-pick:12:category:1", 55);
+
+  assert.equal(updates[0].data.category, "Транспорт");
+  assert.equal(deps.store.has("1"), false);
+});
+
+test("transactionHandler: отмена редактирования возвращает карточку", async () => {
+  const { bot, deps } = setup();
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-cancel:12", 55);
+
+  assert.equal(deps.store.has("1"), false);
+  assert.match(bot.edits.at(-1).text, /Последняя транзакция/);
+});
+
+test("transactionHandler: перевод нельзя редактировать", async () => {
+  const { bot, deps } = setup({
+    transaction: { ...TRANSACTION, category: "Перевод" },
+  });
+
+  await emitCallback(bot, "tx:edit:12", 55);
+
+  assert.equal(deps.store.has("1"), false);
+  assert.deepEqual(bot.answers.at(-1).options, {
+    text: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED,
+    show_alert: true,
+  });
+});
+
+test("transactionHandler: удалённая строка не сохраняет правку", async () => {
+  const { bot, deps, updates } = setup({ transaction: null });
+  deps.state.set("1", {
+    step: "tx-edit",
+    txRow: 12,
+    txField: "amount",
+    cardMessageId: 55,
+  });
+
+  await emitMessage(bot, "300");
+
+  assert.equal(updates.length, 0);
+  assert.equal(deps.store.has("1"), false);
+  assert.equal(bot.sent.at(-1).text, MESSAGES.TRANSACTION_VIEW.NOT_FOUND);
 });

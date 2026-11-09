@@ -249,6 +249,73 @@ export function createTransactionKeyboard({
   };
 }
 
+export function createTransactionEditMenuKeyboard(row) {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "💰 Сумма", callback_data: `tx:edit-field:${row}:amount` },
+          { text: "📅 Дата", callback_data: `tx:edit-field:${row}:date` },
+        ],
+        [
+          {
+            text: "📂 Категория",
+            callback_data: `tx:edit-field:${row}:category`,
+          },
+          {
+            text: "👛 Кошелёк",
+            callback_data: `tx:edit-field:${row}:wallet`,
+          },
+        ],
+        [
+          {
+            text: "📝 Примечание",
+            callback_data: `tx:edit-field:${row}:note`,
+          },
+        ],
+        [
+          { text: "Назад", callback_data: `tx:view:${row}` },
+          { text: "❌ Отмена", callback_data: `tx:edit-cancel:${row}` },
+        ],
+      ],
+    },
+  };
+}
+
+export function createTransactionEditPromptKeyboard(row) {
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "Назад", callback_data: `tx:edit:${row}` },
+          { text: "❌ Отмена", callback_data: `tx:edit-cancel:${row}` },
+        ],
+      ],
+    },
+  };
+}
+
+export function createTransactionEditPickKeyboard(row, field, items = []) {
+  const rows = items.map((item, index) => [
+    {
+      text: item,
+      callback_data: `tx:edit-pick:${row}:${field}:${index}`,
+    },
+  ]);
+
+  return {
+    reply_markup: {
+      inline_keyboard: [
+        ...rows,
+        [
+          { text: "Назад", callback_data: `tx:edit:${row}` },
+          { text: "❌ Отмена", callback_data: `tx:edit-cancel:${row}` },
+        ],
+      ],
+    },
+  };
+}
+
 export function createTransactionDeleteKeyboard(row) {
   return {
     reply_markup: {
