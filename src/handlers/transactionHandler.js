@@ -47,6 +47,37 @@ const MENU_TEXTS = new Set([
   "Последняя транзакция",
 ]);
 
+function editedCardKey(chatId, messageId) {
+  return `${chatId}:${messageId}`;
+}
+
+function editedCards(deps) {
+  if (!deps.txEditedCards) deps.txEditedCards = new Set();
+  return deps.txEditedCards;
+}
+
+function markEditedCard(deps, chatId, messageId) {
+  if (!messageId) return;
+  editedCards(deps).add(editedCardKey(chatId, messageId));
+}
+
+function isEditedCard(deps, chatId, messageId) {
+  if (!messageId) return false;
+  return editedCards(deps).has(editedCardKey(chatId, messageId));
+}
+
+function clearEditedCard(deps, chatId, messageId) {
+  if (!messageId) return;
+  editedCards(deps).delete(editedCardKey(chatId, messageId));
+}
+
+function cardRenderOptions(deps, chatId, messageId) {
+  const edited = isEditedCard(deps, chatId, messageId);
+  return edited
+    ? { edited: true, prefix: MESSAGES.TRANSACTION_VIEW.UPDATED }
+    : { edited: false };
+}
+
 function formatTransactionText(transaction, { title = true } = {}) {
   const amount = Number.isFinite(transaction.amount)
     ? formatAmountValue(transaction.amount)
@@ -363,6 +394,7 @@ async function saveField(
   try {
     await deps.sheets.updateTransaction(transaction.row, updated);
     deps.state.del(chatId);
+    markEditedCard(deps, chatId, messageId);
     await renderTransaction(
       bot,
       deps,
@@ -435,6 +467,7 @@ async function confirmDelete(bot, deps, chatId, messageId, row) {
 
     await deps.sheets.deleteTransaction(row);
     deps.state.del(chatId);
+    clearEditedCard(deps, chatId, messageId);
     await editOrSend(
       bot,
       logger,
@@ -667,7 +700,12 @@ export async function handleTransactionCallback(
 
   if (action === "close" || action === "close-edited") {
     deps.state.del(chatId);
-    if (action === "close-edited") {
+    const edited =
+      action === "close-edited" ||
+      isEditedCard(deps, chatId, messageId);
+    clearEditedCard(deps, chatId, messageId);
+
+    if (edited) {
       await removeInlineKeyboard(bot, logger, chatId, messageId);
       return {};
     }
@@ -689,7 +727,14 @@ export async function handleTransactionCallback(
       return { alert: MESSAGES.TRANSACTION_VIEW.NOT_FOUND };
     }
 
-    await renderTransaction(bot, deps, chatId, transaction, messageId);
+    await renderTransaction(
+      bot,
+      deps,
+      chatId,
+      transaction,
+      messageId,
+      cardRenderOptions(deps, chatId, messageId)
+    );
     return {};
   }
 
@@ -702,7 +747,14 @@ export async function handleTransactionCallback(
 
   if (action === "view") {
     deps.state.del(chatId);
-    await renderTransaction(bot, deps, chatId, transaction, messageId);
+    await renderTransaction(
+      bot,
+      deps,
+      chatId,
+      transaction,
+      messageId,
+      cardRenderOptions(deps, chatId, messageId)
+    );
     return {};
   }
 
@@ -727,20 +779,43 @@ export async function handleTransactionCallback(
 
   if (action === "cancel-delete") {
     deps.state.del(chatId);
-    await renderTransaction(bot, deps, chatId, transaction, messageId);
+    await renderTransaction(
+      bot,
+      deps,
+      chatId,
+      transaction,
+      messageId,
+      cardRenderOptions(deps, chatId, messageId)
+    );
     return {};
   }
 
-  if (action === "prev" || action === "next") {
+  if (
+    action === "prev" ||
+    action === "next" ||
+    action === "prev-edited" ||
+    action === "next-edited"
+  ) {
     deps.state.del(chatId);
-    const neighbor = await deps.sheets.getNeighborTransaction(row, action);
+    const direction = action.startsWith("prev") ? "prev" : "next";
+    const neighbor = await deps.sheets.getNeighborTransaction(row, direction);
     if (!neighbor) {
       return {
         alert:
-          action === "prev"
+          direction === "prev"
             ? MESSAGES.TRANSACTION_VIEW.NO_PREVIOUS
             : MESSAGES.TRANSACTION_VIEW.NO_NEXT,
       };
+    }
+
+    const edited =
+      action.endsWith("-edited") ||
+      isEditedCard(deps, chatId, messageId);
+    if (edited) {
+      clearEditedCard(deps, chatId, messageId);
+      await removeInlineKeyboard(bot, logger, chatId, messageId);
+      await renderTransaction(bot, deps, chatId, neighbor);
+      return {};
     }
 
     await renderTransaction(bot, deps, chatId, neighbor, messageId);

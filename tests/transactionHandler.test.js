@@ -244,6 +244,78 @@ test("transactionHandler: изменение суммы сохраняет и о
   );
 });
 
+test("transactionHandler: изменённые карточки остаются при навигации", async () => {
+  const { bot } = setup({
+    neighbor: (row, direction) =>
+      direction === "next"
+        ? { ...TRANSACTION, row: 13, date: "10.11.2026", note: "вторая" }
+        : null,
+  });
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-field:12:note", 55);
+  await emitMessage(bot, "первая");
+
+  const editedCallbacks = bot.edits
+    .at(-1)
+    .form.reply_markup.inline_keyboard.flat()
+    .map((button) => button.callback_data);
+  assert.ok(editedCallbacks.includes("tx:next-edited:12"));
+
+  await emitCallback(bot, "tx:next-edited:12", 55);
+
+  assert.ok(
+    bot.edits.some(
+      (edit) => edit.type === "markup" && edit.form.message_id === 55
+    )
+  );
+
+  const secondMessageId = bot.sent.at(-1).message.message_id;
+  assert.match(bot.sent.at(-1).text, /Транзакция 13/);
+
+  await emitCallback(bot, "tx:edit:13", secondMessageId);
+  await emitCallback(bot, "tx:edit-field:13:note", secondMessageId);
+  await emitMessage(bot, "вторая");
+
+  const closeCallback = bot.edits
+    .at(-1)
+    .form.reply_markup.inline_keyboard.flat()
+    .find((button) => button.text === "❌ Закрыть").callback_data;
+  assert.equal(closeCallback, "tx:close-edited:13");
+
+  await emitCallback(bot, closeCallback, secondMessageId);
+
+  assert.ok(
+    !bot.deleted.some(
+      (item) =>
+        item.messageId === 55 || item.messageId === secondMessageId
+    )
+  );
+  assert.ok(
+    bot.edits.some(
+      (edit) =>
+        edit.type === "text" &&
+        edit.form.message_id === 55 &&
+        /Транзакция 12/.test(edit.text)
+    )
+  );
+  assert.ok(
+    bot.edits.some(
+      (edit) =>
+        edit.type === "text" &&
+        edit.form.message_id === secondMessageId &&
+        /Транзакция 13/.test(edit.text)
+    )
+  );
+  assert.ok(
+    bot.edits.some(
+      (edit) =>
+        edit.type === "markup" &&
+        edit.form.message_id === secondMessageId
+    )
+  );
+});
+
 test("transactionHandler: изменённая карточка остаётся после закрытия", async () => {
   const { bot } = setup();
 
