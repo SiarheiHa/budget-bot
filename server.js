@@ -1,4 +1,7 @@
 import "./src/index.js"; // Это запустит вашего бота
+import bot from "./src/bot.js";
+import { logger } from "./src/logger.js";
+import { registerShutdownHandlers } from "./src/shutdown.js";
 import http from "http";
 
 // Простой HTTP-сервер для health-чеков Render
@@ -11,6 +14,8 @@ const server = http.createServer((req, res) => {
     res.end();
   }
 });
+
+registerShutdownHandlers({ server, bot, logger });
 
 const PORT = process.env.PORT || 3000;
 

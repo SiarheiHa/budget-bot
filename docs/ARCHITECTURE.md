@@ -182,5 +182,8 @@ Callback-отмена (`v1:cancel`, `ai:cancel`) проходит через п�
 - `configBuilder.js` собирает конфиг из переданного env без побочных эффектов;
   `config.js` загружает dotenv и валидирует переменные при старте.
 - `logger` — минимальная обёртка над `console` с уровнями и `DEBUG`.
+- `server.js` перехватывает `SIGTERM`/`SIGINT`: закрывает HTTP-сервер,
+  останавливает polling и выходит; если остановка зависла, через 10 секунд
+  завершает процесс принудительно. Логика вынесена в `src/shutdown.js`.
 - `package.json`: `main: "server.js"`, `start: "node server.js"`,
   `dev: "nodemon src/index.js"`.
