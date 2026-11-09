@@ -29,6 +29,7 @@ src/
 │   ├── addHandler.js
 │   ├── aiHandler.js
 │   ├── balanceHandler.js
+│   ├── transactionHandler.js
 │   ├── cancelHandler.js
 │   └── callbackHandler.js
 └── index.js
@@ -54,6 +55,10 @@ src/
   `expense`, `transfer` или `null`.
 - `Wallets!B2:D` — имена, балансы и валюты кошельков.
 - `Transactions!A:G` — транзакции.
+- `Service!A1` — служебная формула с номером последней заполненной строки:
+  `=IFERROR(ARRAYFORMULA(LOOKUP(2;1/(Transactions!A2:A100000<>"");ROW(Transactions!A2:A100000)));0)`.
+  Лист создаётся вручную; если формулы нет, бот откатывается к чтению
+  `Transactions!A2:A`.
 - При записи заполняются `A,C,E,F,G`, а `B,D` остаются пустыми, чтобы не
   затирать формулы.
 - Перевод записывается двумя строками в одном `values.append`: списание с
@@ -62,7 +67,8 @@ src/
 
 ## 5. Флоу
 ### /start
-Показывает главное меню: `Добавить транзакцию`, `Показать баланс`.
+Показывает главное меню: `Добавить транзакцию`, `Показать баланс`,
+`Последняя транзакция`.
 
 ### /add (одна карточка)
 `/add` удаляет сообщение с командой или кнопкой меню и создаёт карточку.
@@ -118,11 +124,35 @@ read-only. AI-callback сверяют `message_id` с `aiMessageId`, чтобы 
 - `v1:cancel` — отмена через общий `handleCancel`.
 - `ai:edit`, `ai:field:*`, `ai:pick:*`, `ai:amt:*`, `ai:cal:*`, `ai:back`,
   `ai:confirm`, `ai:cancel` — AI-карточка и редакторы полей.
+- `tx:prev:<row>`, `tx:next:<row>`, `tx:view:<row>`, `tx:close:<row>` —
+  навигация и закрытие карточки транзакции.
+- `tx:edit:<row>`, `tx:edit-field:<row>:<field>`,
+  `tx:edit-pick:<row>:<field>:<index>`, `tx:edit-cancel:<row>` — редактирование.
+- `tx:delete:<row>`, `tx:confirm-delete:<row>`, `tx:cancel-delete:<row>` —
+  удаление с подтверждением.
 
 Проверяется доступ (`checkAccess`), на каждый callback отвечает
 `answerCallbackQuery`. Устаревшие кнопки дают alert. Перед переходом
 `amountUi.abort` дожидается in-flight правки, чтобы старая клавиатура не
 вернулась.
+
+### /last (карточка транзакции)
+Кнопка `Последняя транзакция` или `/last` открывает карточку последней
+заполненной строки `Transactions`. Карточка показывает дату, сумму, категорию,
+кошелёк и примечание. Доступны `← Предыдущая`, `Следующая →`, `✏️ Изменить`,
+`🗑 Удалить` и `❌ Закрыть`. Навигация идёт по порядку строк, а не по дате;
+пустые строки пропускаются.
+
+Перед удалением показывается подтверждение. Удаление использует
+`DeleteDimension` по `sheetId` листа `Transactions`. Редактирование пишет только
+`A`, `C`, `E:G`; `B` и `D` с формулами не трогаются. Переводы (категория с типом
+`transfer`) пока нельзя редактировать и удалять: карточка показывает
+предупреждение, чтобы не удалить половину перевода.
+
+У строки нет стабильного ID, поэтому её идентификатор — номер строки. Перед
+действием хендлер перечитывает строку; если она уже пуста, показывает
+`Транзакция не найдена`. Кеш `lastRow`, отдельных строк и окон по 25 строк живёт
+5 минут и сбрасывается после `append`, `update` и `delete`.
 
 ### /balance
 `getBalances()` читает `Wallets!B2:D`, приводит баланс к числу и фильтрует
@@ -147,6 +177,11 @@ read-only. AI-callback сверяют `message_id` с `aiMessageId`, чтобы 
 Структура AI-черновика:
 ```js
 { aiStep: 'confirm'|'edit', aiEditField: 'amount'|'date'|'category'|'wallet'|'note'|null, aiDraft: { type, amount, category, wallet, date, note }, aiAmountDraft: '', categories: [{ name, type }], wallets: [], aiMessageId: <id>, _ts: <timestamp> }
+```
+
+Структура редактирования транзакции:
+```js
+{ step: 'tx-edit', txRow: <row>, txField: 'date'|'amount'|'category'|'wallet'|'note'|null, cardMessageId: <id>, _ts: <timestamp> }
 ```
 
 TTL — 15 минут. При истечении `getUserState` удаляет состояние и отправляет одно
@@ -185,6 +220,12 @@ Callback-отмена (`v1:cancel`, `ai:cancel`) проходит через п�
   `bot.js` создаёт экземпляр, а тесты подменяют `valuesApi`. Реальный
   Google-клиент создаётся лениво. При аргументе `test` модуль делает быструю
   проверку `getBalances()`.
+- `appendTransaction`/`appendTransfer` возвращают номер последней записанной
+  строки из `updates.updatedRange`. `getLastTransaction` читает `Service!A1`
+  (fallback `Transactions!A2:A`) и одну строку; `getNeighborTransaction` —
+  окно до 25 строк. `deleteTransaction` использует `batchUpdate`
+  (`DeleteDimension`), `updateTransaction` — `values.batchUpdate` только для
+  `A`, `C`, `E:G`.
 - `configBuilder.js` собирает конфиг из переданного env без побочных эффектов;
   `config.js` загружает dotenv и валидирует переменные при старте.
 - `logger` — минимальная обёртка над `console` с уровнями и `DEBUG`.
