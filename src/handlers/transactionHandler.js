@@ -324,6 +324,11 @@ async function confirmDelete(bot, deps, chatId, messageId, row) {
 
 export async function handleTransactionText(bot, deps, msg) {
   const chatId = msg.chat.id;
+  const peeked = deps.state.peek
+    ? deps.state.peek(chatId)
+    : deps.state.get(chatId);
+  if (!peeked || peeked.step !== "tx-edit") return false;
+
   const state = deps.state.get(chatId);
   if (!state || state.step !== "tx-edit") return false;
 
