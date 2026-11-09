@@ -80,6 +80,7 @@ function buildView(transaction, transfer) {
     row: transaction.row,
     canEdit: !transfer,
     canDelete: !transfer,
+    nav: true,
   });
 
   return { text, keyboard };
@@ -469,6 +470,22 @@ export async function handleTransactionCallback(
   if (action === "cancel-delete") {
     deps.state.del(chatId);
     await renderTransaction(bot, deps, chatId, transaction, messageId);
+    return {};
+  }
+
+  if (action === "prev" || action === "next") {
+    deps.state.del(chatId);
+    const neighbor = await deps.sheets.getNeighborTransaction(row, action);
+    if (!neighbor) {
+      return {
+        alert:
+          action === "prev"
+            ? MESSAGES.TRANSACTION_VIEW.NO_PREVIOUS
+            : MESSAGES.TRANSACTION_VIEW.NO_NEXT,
+      };
+    }
+
+    await renderTransaction(bot, deps, chatId, neighbor, messageId);
     return {};
   }
 

@@ -41,6 +41,8 @@ function setup(options = {}) {
       updateTransaction: async (row, data) => {
         updates.push({ row, data });
       },
+      getNeighborTransaction: async (row, direction) =>
+        options.neighbor ? options.neighbor(row, direction) : null,
       ...(options.sheets || {}),
     },
   });
@@ -141,7 +143,11 @@ test("transactionHandler: перевод нельзя удалить", async () 
     bot.sent[0].text,
     /Редактирование и удаление переводов пока не поддерживается/
   );
-  assert.deepEqual(keyboardCallbacks(bot), ["tx:close:12"]);
+  assert.deepEqual(keyboardCallbacks(bot), [
+    "tx:prev:12",
+    "tx:next:12",
+    "tx:close:12",
+  ]);
 });
 
 test("transactionHandler: удаление требует подтверждения", async () => {
@@ -326,4 +332,46 @@ test("transactionHandler: удалённая строка не сохраняе�
   assert.equal(updates.length, 0);
   assert.equal(deps.store.has("1"), false);
   assert.equal(bot.sent.at(-1).text, MESSAGES.TRANSACTION_VIEW.NOT_FOUND);
+});
+
+test("transactionHandler: карточка показывает кнопки навигации", async () => {
+  const { bot } = setup();
+
+  await emitText(bot, "/last");
+
+  const callbacks = keyboardCallbacks(bot);
+  assert.ok(callbacks.includes("tx:prev:12"));
+  assert.ok(callbacks.includes("tx:next:12"));
+});
+
+test("transactionHandler: предыдущая транзакция открывается в карточке", async () => {
+  const { bot } = setup({
+    neighbor: (row, direction) =>
+      direction === "prev"
+        ? { ...TRANSACTION, row: 11, date: "08.11.2026", note: "предыдущая" }
+        : null,
+  });
+
+  await emitCallback(bot, "tx:prev:12", 55);
+
+  const edit = bot.edits.at(-1);
+  assert.match(edit.text, /08\.11\.2026/);
+  assert.match(edit.text, /предыдущая/);
+  assert.equal(edit.form.message_id, 55);
+  assert.ok(
+    edit.form.reply_markup.inline_keyboard
+      .flat()
+      .some((button) => button.callback_data === "tx:prev:11")
+  );
+});
+
+test("transactionHandler: отсутствие следующей строки показывает alert", async () => {
+  const { bot } = setup();
+
+  await emitCallback(bot, "tx:next:12", 55);
+
+  assert.deepEqual(bot.answers.at(-1).options, {
+    text: MESSAGES.TRANSACTION_VIEW.NO_NEXT,
+    show_alert: true,
+  });
 });

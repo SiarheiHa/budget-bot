@@ -38,6 +38,8 @@ export const MESSAGES = {
     EDIT_NO_WALLETS: "Нет доступных кошельков.",
     EDIT_ERROR: "❌ Не удалось изменить транзакцию.",
     UPDATED: "✅ Изменено.",
+    NO_PREVIOUS: "Предыдущих транзакций нет.",
+    NO_NEXT: "Следующих транзакций нет.",
   },
   COMMON: {
     CANCELLED: "❌ Операция отменена.",
