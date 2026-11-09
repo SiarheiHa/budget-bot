@@ -8,10 +8,12 @@
 
 ## 2. Структура
 ```
-server.js            # HTTP health-check, запуск src/index.js
+server.js            # HTTP health-check, graceful shutdown, запуск src/index.js
 src/
 ├── bot.js           # инициализация бота, deps, регистрация хендлеров
-├── config.js        # валидация env, экспорт config
+├── config.js        # загрузка .env, NODE_ENV, экспорт config
+├── configBuilder.js # сборка конфига из env без побочных эффектов
+├── shutdown.js      # корректная остановка polling и HTTP-сервера
 ├── sheets.js        # Google Sheets API
 ├── state.js         # Map состояний пользователей
 ├── utils.js         # даты, суммы, доступ, удаление сообщений
@@ -37,6 +39,10 @@ src/
 - Опциональные: `GOOGLE_CREDENTIALS_B64`, `NODE_ENV`, `DEBUG`, `PORT`,
   `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_AI_MODEL`,
   `AI_PARSING_ENABLED`.
+- `configBuilder.js` читает `BOT_TOKEN`, `SPREADSHEET_ID`, `ALLOWED_USERS`,
+  `GOOGLE_CREDENTIALS_B64`, Cloudflare-переменные и `AI_PARSING_ENABLED`.
+- `config.js` загружает `.env` и читает `NODE_ENV`; `logger.js` читает `DEBUG`;
+  `server.js` читает `PORT`.
 - Google Auth: приоритет `GOOGLE_CREDENTIALS_B64`, fallback `credentials.json`.
 - AI включается только при наличии Cloudflare-ключей; `AI_PARSING_ENABLED=false`
   принудительно отключает его. Модель по умолчанию —
