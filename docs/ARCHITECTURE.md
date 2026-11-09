@@ -50,6 +50,9 @@ src/
 - `Transactions!A:G` — транзакции.
 - При записи заполняются `A,C,E,F,G`, а `B,D` остаются пустыми, чтобы не
   затирать формулы.
+- Перевод записывается двумя строками в одном `values.append`: списание с
+  кошелька-источника (отрицательная сумма) и зачисление получателю
+  (положительная сумма). Категория, дата и примечание у строк одинаковые.
 
 ## 5. Флоу
 ### /start
@@ -69,15 +72,20 @@ src/
    Ручной ввод также принимается. `amountDraft` обновляется синхронно до
    `answerCallbackQuery`, рендер идёт через `amountUi`.
 3. `category` — ReplyKeyboard со списком из таблицы и `❌ Отмена`; ручной ввод
-   остаётся fallback.
+   остаётся fallback. Если выбрана категория с типом `transfer`, сумма
+   нормализуется к положительной и диалог переходит к шагам перевода.
 4. `wallet` — ReplyKeyboard со списком из таблицы и `❌ Отмена`; ручной ввод
-   остаётся fallback.
+   остаётся fallback. Для перевода вместо этого шага запрашиваются
+   `transferFrom` («Откуда») и `transferTo` («Куда»); получатель исключается из
+   списка и не может совпадать с источником. Если кошельков меньше двух,
+   показывается ошибка и шаг категории не меняется.
 5. `note` — ввод или `-` для пропуска. Карточка переотправляется с `ForceReply`,
    чтобы клиент попытался сразу открыть ввод. Кнопки отмены на шаге нет, отмена —
    `/cancel`.
 
-Сохранение идёт через `sheets.appendTransaction` с `valueInputOption:
-"USER_ENTERED"`. После успеха бот отправляет одно итоговое сообщение с полями,
+Сохранение обычной операции идёт через `sheets.appendTransaction`, перевода —
+через `sheets.appendTransfer` (обе функции используют `valueInputOption:
+"USER_ENTERED"`). После успеха бот отправляет одно итоговое сообщение с полями,
 `✅ Запись добавлена в таблицу!` и главным меню, затем удаляет карточку и
 использованные сообщения пользователя. Ошибки формата даты/суммы и неверные
 значения показываются в карточке, без отдельных сообщений.
@@ -113,7 +121,8 @@ read-only. AI-callback сверяют `message_id` с `aiMessageId`, чтобы 
 ### /balance
 `getBalances()` читает `Wallets!B2:D`, приводит баланс к числу и фильтрует
 пустые имена. Результат или ошибка отправляются с главным меню; отдельного
-`Выберите действие` нет.
+`Выберите действие` нет. Сообщение `LOADING` удаляется перед отправкой
+результата: Telegram не позволяет редактировать сообщения с ReplyKeyboard.
 
 ### Отмена
 `/cancel`, `❌ Отмена`, `v1:cancel` и `ai:cancel` идут в общий `handleCancel`.
@@ -127,7 +136,7 @@ read-only. AI-callback сверяют `message_id` с `aiMessageId`, чтобы 
 ## 6. Состояние
 `state.js` — in-memory Map. Структура ручного `/add`:
 ```js
-{ step: 'date'|'amount'|'category'|'wallet'|'note', data: { date, amount, category, wallet, note }, categories: [], wallets: [], cardMessageId: <id>, amountDraft: '', _ts: <timestamp> }
+{ step: 'date'|'amount'|'category'|'wallet'|'transferFrom'|'transferTo'|'note', data: { date, amount, category, wallet, transferFrom, transferTo, transfer, note }, categories: [], categoryTypes: {}, wallets: [], cardMessageId: <id>, amountDraft: '', _ts: <timestamp> }
 ```
 Структура AI-черновика:
 ```js
@@ -166,7 +175,15 @@ Callback-отмена (`v1:cancel`, `ai:cancel`) проходит через п�
   главным меню.
 - `startHandler` вызывает `handleAddCommand`/`handleBalanceCommand` напрямую;
   оба обработчика проверяют доступ.
-- `sheets.js` при аргументе `test` делает быструю проверку `getBalances()`.
+- `sheets.js` экспортирует `createSheets({ config, logger, valuesApi })`;
+  `bot.js` создаёт экземпляр, а тесты подменяют `valuesApi`. Реальный
+  Google-клиент создаётся лениво. При аргументе `test` модуль делает быструю
+  проверку `getBalances()`.
+- `configBuilder.js` собирает конфиг из переданного env без побочных эффектов;
+  `config.js` загружает dotenv и валидирует переменные при старте.
 - `logger` — минимальная обёртка над `console` с уровнями и `DEBUG`.
+- `server.js` перехватывает `SIGTERM`/`SIGINT`: закрывает HTTP-сервер,
+  останавливает polling и выходит; если остановка зависла, через 10 секунд
+  завершает процесс принудительно. Логика вынесена в `src/shutdown.js`.
 - `package.json`: `main: "server.js"`, `start: "node server.js"`,
   `dev: "nodemon src/index.js"`.

@@ -412,6 +412,26 @@ test("aiHandler: не вмешивается в активный диалог /a
   assert.equal(bot.sent.length, 0);
 });
 
+test("aiHandler: поздний ответ не перезаписывает начатый /add", async () => {
+  let depsRef;
+  const { bot, deps } = setup({
+    ai: {
+      parse: async () => {
+        depsRef.state.set("1", { step: "date", data: { date: "04.11.2026" } });
+        return aiResult();
+      },
+    },
+  });
+  depsRef = deps;
+
+  await emitMessage(bot, "кофе 250");
+
+  const state = deps.store.get("1");
+  assert.equal(state.step, "date");
+  assert.equal(state.aiDraft, undefined);
+  assert.equal(bot.sent.length, 0);
+});
+
 test("aiHandler: команды, меню и отмена игнорируются", async () => {
   let parsed = false;
   const { bot } = setup({
@@ -475,14 +495,24 @@ test("aiHandler: пока запрос в полёте, второй текст 
   assert.equal(calls, 1);
 });
 
-test("aiHandler: не транзакция даёт подсказку", async () => {
+test("aiHandler: не транзакция с цифрой даёт подсказку", async () => {
+  const { bot } = setup({
+    ai: { parse: async () => ({ ok: false, reason: "not_transaction" }) },
+  });
+
+  await emitMessage(bot, "кофе 250");
+
+  assert.equal(bot.sent.at(-1).text, MESSAGES.AI.NOT_RECOGNIZED);
+});
+
+test("aiHandler: бытовая фраза без цифр не получает ответ", async () => {
   const { bot } = setup({
     ai: { parse: async () => ({ ok: false, reason: "not_transaction" }) },
   });
 
   await emitMessage(bot, "привет");
 
-  assert.equal(bot.sent.at(-1).text, MESSAGES.AI.NOT_RECOGNIZED);
+  assert.equal(bot.sent.length, 0);
 });
 
 test("aiHandler: ошибка AI даёт понятное сообщение", async () => {

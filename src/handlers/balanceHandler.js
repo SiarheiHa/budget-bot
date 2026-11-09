@@ -1,6 +1,15 @@
 import { mainKeyboard, removeKeyboard } from "../keyboards.js";
-import { createAccessMiddleware } from "../utils.js";
+import { createAccessMiddleware, safeDeleteMessage } from "../utils.js";
+import { formatBalanceValue } from "../amount.js";
 import { MESSAGES } from "../messages.js";
+
+async function finishLoadingMessage(bot, logger, chatId, messageId, text) {
+  if (messageId) {
+    await safeDeleteMessage(bot, logger, chatId, messageId);
+  }
+
+  await bot.sendMessage(chatId, text, mainKeyboard);
+}
 
 // Добавляем экспорт функции для обработки команды /balance
 export async function handleBalanceCommand(bot, deps, msg) {
@@ -9,25 +18,52 @@ export async function handleBalanceCommand(bot, deps, msg) {
   const chatId = msg.chat.id;
   logger.info(`/balance от пользователя ${chatId}`);
 
+  let loadingMessage = null;
+
   try {
-    await bot.sendMessage(chatId, MESSAGES.BALANCE.LOADING, removeKeyboard);
+    loadingMessage = await bot.sendMessage(
+      chatId,
+      MESSAGES.BALANCE.LOADING,
+      removeKeyboard
+    );
     const balances = await sheets.getBalances();
 
     if (!balances || balances.length === 0) {
-      await bot.sendMessage(chatId, MESSAGES.BALANCE.NO_DATA, mainKeyboard);
+      await finishLoadingMessage(
+        bot,
+        logger,
+        chatId,
+        loadingMessage?.message_id,
+        MESSAGES.BALANCE.NO_DATA
+      );
       return;
     }
 
     const text = balances
-      .map((b) => `💰 ${b.name}: ${b.balance} ${b.currency}`)
+      .map(
+        (b) =>
+          `💰 ${b.name}: ${formatBalanceValue(b.balance)} ${b.currency}`
+      )
       .join("\n");
-    await bot.sendMessage(chatId, MESSAGES.BALANCE.TITLE + text, mainKeyboard);
+    await finishLoadingMessage(
+      bot,
+      logger,
+      chatId,
+      loadingMessage?.message_id,
+      MESSAGES.BALANCE.TITLE + text
+    );
   } catch (err) {
     logger.error(
       `Ошибка при получении балансов для пользователя ${chatId}: ${err.message}`,
       err
     );
-    await bot.sendMessage(chatId, MESSAGES.BALANCE.ERROR, mainKeyboard);
+    await finishLoadingMessage(
+      bot,
+      logger,
+      chatId,
+      loadingMessage?.message_id,
+      MESSAGES.BALANCE.ERROR
+    );
   }
 }
 

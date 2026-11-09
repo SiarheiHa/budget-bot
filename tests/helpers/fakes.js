@@ -50,6 +50,7 @@ export function createDeps(initialState = {}, overrides = {}) {
     ])
   );
   const transactions = [];
+  const transfers = [];
 
   return {
     config: {
@@ -75,6 +76,9 @@ export function createDeps(initialState = {}, overrides = {}) {
       appendTransaction: async (transaction) => {
         transactions.push(transaction);
       },
+      appendTransfer: async (transfer) => {
+        transfers.push(transfer);
+      },
       ...(overrides.sheets || {}),
     },
     ai: overrides.ai || {
@@ -99,6 +103,7 @@ export function createDeps(initialState = {}, overrides = {}) {
     },
     store,
     transactions,
+    transfers,
   };
 }
 

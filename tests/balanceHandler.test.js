@@ -15,8 +15,14 @@ test("balance: выводит балансы и возвращает меню", 
 
   assert.equal(bot.sent.length, 2);
   assert.equal(bot.sent[0].text, MESSAGES.BALANCE.LOADING);
-  assert.match(bot.sent[1].text, /Наличные: 100 RUB/);
-  assert.ok(bot.sent.at(-1).options.reply_markup.keyboard);
+  assert.match(bot.sent[1].text, /Наличные: 100,00 RUB/);
+  assert.ok(bot.sent[1].options.reply_markup.keyboard);
+  assert.equal(bot.edits.length, 0);
+  assert.ok(
+    bot.deleted.some(
+      (item) => item.messageId === bot.sent[0].message.message_id
+    )
+  );
 });
 
 test("balance: пустой список показывает NO_DATA", async () => {
@@ -26,10 +32,13 @@ test("balance: пустой список показывает NO_DATA", async ()
   await handleBalanceCommand(bot, deps, { chat: { id: 1 } });
 
   assert.equal(bot.sent.length, 2);
+  assert.equal(bot.sent[1].text, MESSAGES.BALANCE.NO_DATA);
+  assert.ok(bot.sent[1].options.reply_markup.keyboard);
   assert.ok(
-    bot.sent.some((message) => message.text === MESSAGES.BALANCE.NO_DATA)
+    bot.deleted.some(
+      (item) => item.messageId === bot.sent[0].message.message_id
+    )
   );
-  assert.ok(bot.sent.at(-1).options.reply_markup.keyboard);
 });
 
 test("balance: ошибка Sheets показывает ERROR и возвращает меню", async () => {
@@ -48,10 +57,13 @@ test("balance: ошибка Sheets показывает ERROR и возвращ�
   await handleBalanceCommand(bot, deps, { chat: { id: 1 } });
 
   assert.equal(bot.sent.length, 2);
+  assert.equal(bot.sent[1].text, MESSAGES.BALANCE.ERROR);
+  assert.ok(bot.sent[1].options.reply_markup.keyboard);
   assert.ok(
-    bot.sent.some((message) => message.text === MESSAGES.BALANCE.ERROR)
+    bot.deleted.some(
+      (item) => item.messageId === bot.sent[0].message.message_id
+    )
   );
-  assert.ok(bot.sent.at(-1).options.reply_markup.keyboard);
 });
 
 test("balance: команда /balance проходит через onText", async () => {
@@ -63,5 +75,5 @@ test("balance: команда /balance проходит через onText", asyn
 
   assert.equal(bot.sent.length, 2);
   assert.equal(bot.sent[0].text, MESSAGES.BALANCE.LOADING);
-  assert.match(bot.sent[1].text, /Наличные: 100 RUB/);
+  assert.match(bot.sent[1].text, /Наличные: 100,00 RUB/);
 });

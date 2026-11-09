@@ -1,6 +1,6 @@
 import TelegramBot from "node-telegram-bot-api";
 import { config } from "./config.js";
-import { sheets } from "./sheets.js";
+import { createSheets } from "./sheets.js";
 import { logger } from "./logger.js";
 import { registerStartHandler } from "./handlers/startHandler.js";
 import { registerBalanceHandler } from "./handlers/balanceHandler.js";
@@ -26,6 +26,8 @@ bot.on("polling_error", (err) => {
 });
 
 // Инициализируем зависимости
+
+const sheets = createSheets({ config, logger });
 
 const state = {
   set: setUserState,

@@ -27,7 +27,7 @@ export function registerStartHandler(bot, deps) {
 
   // Обработчик для кнопки "Добавить транзакцию"
   bot.onText(
-    /Добавить транзакцию/,
+    /^Добавить транзакцию$/,
     withAccess(async (bot, deps, msg) => {
       const chatId = msg.chat.id;
       try {
@@ -45,7 +45,7 @@ export function registerStartHandler(bot, deps) {
 
   // Обработчик для кнопки "Показать баланс"
   bot.onText(
-    /Показать баланс/,
+    /^Показать баланс$/,
     withAccess(async (bot, deps, msg) => {
       const chatId = msg.chat.id;
       try {

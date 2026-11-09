@@ -516,10 +516,22 @@ async function handleFreeText(bot, deps, msg) {
 
     if (!result.ok) {
       if (result.reason === "not_transaction") {
-        await bot.sendMessage(chatId, MESSAGES.AI.NOT_RECOGNIZED);
+        if (/\d/.test(text)) {
+          await bot.sendMessage(chatId, MESSAGES.AI.NOT_RECOGNIZED);
+        }
       } else if (result.reason !== "disabled") {
         await bot.sendMessage(chatId, MESSAGES.AI.ERROR);
       }
+      return;
+    }
+
+    // Пока шёл запрос к AI, пользователь мог начать другой диалог (/add).
+    // Не перезаписываем появившееся состояние и не показываем AI-карточку.
+    const appeared = deps.state.peek
+      ? deps.state.peek(chatId)
+      : deps.state.get(chatId);
+    if (appeared) {
+      deps.logger?.debug?.(`AI result discarded: state appeared for ${chatId}`);
       return;
     }
 

@@ -6,6 +6,9 @@ import {
   parseAmount,
   formatDateToDisplay,
   normalizeCategoryType,
+  escapeSheetFormula,
+  buildTransactionRow,
+  buildTransferRows,
 } from '../src/utils.js';
 
 test('parseDateDDMMYYYY: full date DD.MM.YYYY', () => {
@@ -50,7 +53,15 @@ test('parseAmount: negative values', () => {
 });
 
 test('parseAmount: invalid returns NaN', () => {
-  assert.equal(Number.isNaN(parseAmount('abc')), true);
+  for (const value of ['abc', '', '.', '5.', '.5', '1e3']) {
+    assert.equal(Number.isNaN(parseAmount(value)), true, value);
+  }
+});
+
+test('parseAmount: rejects trailing garbage and mixed separators', () => {
+  for (const value of ['12abc', '1,2,3', '1.2.3', '1.234,56', '1,234.56']) {
+    assert.equal(Number.isNaN(parseAmount(value)), true, value);
+  }
 });
 
 test('formatDateToDisplay', () => {
@@ -95,6 +106,69 @@ test('parseNaturalDate: невалидные значения', () => {
   assert.equal(parseNaturalDate('9 смородины', NOW), null);
   assert.equal(parseNaturalDate('не дата', NOW), null);
   assert.equal(parseNaturalDate('', NOW), null);
+});
+
+test('escapeSheetFormula: экранирует формулы', () => {
+  assert.equal(escapeSheetFormula('=1+1'), "'=1+1");
+  assert.equal(escapeSheetFormula('+7 999'), "'+7 999");
+  assert.equal(escapeSheetFormula('-500'), "'-500");
+  assert.equal(escapeSheetFormula('@user'), "'@user");
+  assert.equal(escapeSheetFormula('  =SUM(A1)'), "'  =SUM(A1)");
+  assert.equal(escapeSheetFormula('\t=1'), "'\t=1");
+  assert.equal(escapeSheetFormula('\r=1'), "'\r=1");
+});
+
+test('escapeSheetFormula: не трогает обычный текст', () => {
+  assert.equal(escapeSheetFormula('кофе'), 'кофе');
+  assert.equal(escapeSheetFormula('12 = 12'), '12 = 12');
+  assert.equal(escapeSheetFormula("'=1+1"), "'=1+1");
+  assert.equal(escapeSheetFormula(''), '');
+  assert.equal(escapeSheetFormula(null), '');
+  assert.equal(escapeSheetFormula(undefined), '');
+});
+
+test('buildTransactionRow: порядок колонок и экранирование примечания', () => {
+  assert.deepEqual(
+    buildTransactionRow({
+      date: '13.09.2025',
+      amount: 123.45,
+      category: 'Еда',
+      wallet: 'Наличные',
+      note: '=1+1',
+    }),
+    ['13.09.2025', '', 123.45, '', 'Еда', 'Наличные', "'=1+1"]
+  );
+});
+
+test('buildTransferRows: две строки с разными знаками', () => {
+  assert.deepEqual(
+    buildTransferRows({
+      date: '03.09.2025',
+      amount: 4.59,
+      category: 'перевод',
+      fromWallet: 'МТБ Сергей',
+      toWallet: 'статусбанк',
+      note: 'комиссия',
+    }),
+    [
+      ['03.09.2025', '', -4.59, '', 'перевод', 'МТБ Сергей', 'комиссия'],
+      ['03.09.2025', '', 4.59, '', 'перевод', 'статусбанк', 'комиссия'],
+    ]
+  );
+});
+
+test('buildTransferRows: отрицательная сумма нормализуется', () => {
+  const rows = buildTransferRows({
+    date: '03.09.2025',
+    amount: -4.59,
+    category: 'перевод',
+    fromWallet: 'МТБ Сергей',
+    toWallet: 'статусбанк',
+    note: '',
+  });
+
+  assert.equal(rows[0][2], -4.59);
+  assert.equal(rows[1][2], 4.59);
 });
 
 test('normalizeCategoryType: русские и английские значения', () => {

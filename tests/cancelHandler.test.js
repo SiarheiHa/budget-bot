@@ -5,6 +5,13 @@ import {
   registerCancelHandler,
 } from "../src/handlers/cancelHandler.js";
 import { MESSAGES } from "../src/messages.js";
+import {
+  clearUserState,
+  getUserState,
+  peekUserState,
+  setUserState,
+  updateUserState,
+} from "../src/state.js";
 import { createBot, createDeps, emitText } from "./helpers/fakes.js";
 
 const cardState = {
@@ -55,6 +62,32 @@ test("cancel: без активного state ничего не делает", a
   assert.equal(bot.sent.length, 0);
   assert.equal(bot.edits.length, 0);
   assert.equal(bot.deleted.length, 0);
+});
+
+test("cancel: при истёкшем state отправляет SESSION_EXPIRED", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: 0 });
+
+  const bot = createBot();
+  const deps = createDeps();
+  deps.state = {
+    get: getUserState,
+    set: setUserState,
+    del: clearUserState,
+    update: updateUserState,
+    peek: peekUserState,
+  };
+
+  setUserState(77, { step: "amount", cardMessageId: 10 });
+  t.mock.timers.tick(16 * 60 * 1000);
+
+  await handleCancel(bot, deps, { chat: { id: 77 }, message_id: 20 });
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(bot.sent.length, 1);
+  assert.equal(bot.sent[0].text, MESSAGES.COMMON.SESSION_EXPIRED);
+  assert.ok(bot.sent[0].options.reply_markup.keyboard);
+  assert.equal(bot.deleted.length, 0);
+  assert.equal(getUserState(77), null);
 });
 
 test("cancel: старые сообщения с inline-клавиатурами удаляются", async () => {

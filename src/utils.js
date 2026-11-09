@@ -255,6 +255,7 @@ export function formatDateToDisplay(date) {
 
 /**
  * Парсит сумму из строки — принимает запятую или точку, убирает пробелы.
+ * Строка должна целиком быть числом: "12abc", "1,2,3" и "1.2.3" отклоняются.
  * Возвращает число (float) или NaN если не удалось распарсить.
  * @param {string|number} text
  * @returns {number}
@@ -266,8 +267,11 @@ export function parseAmount(text) {
     .trim()
     .replace(/\s+/g, "")
     .replace(/−/g, "-")
-    .replace(",", ".");
-  const num = parseFloat(cleaned);
+    .replace(/,/g, ".");
+
+  if (!/^[+-]?\d+(?:\.\d+)?$/.test(cleaned)) return NaN;
+
+  const num = Number(cleaned);
   return Number.isFinite(num) ? num : NaN;
 }
 
@@ -280,6 +284,57 @@ export function normalizeCategoryType(value) {
   if (normalized === "расход" || normalized === "expense") return "expense";
   if (normalized === "перевод" || normalized === "transfer") return "transfer";
   return null;
+}
+
+/**
+ * Экранирует текст для записи с valueInputOption: "USER_ENTERED".
+ * Google Sheets воспринимает строки, начинающиеся с =, +, -, @ или
+ * с табуляции/перевода каретки, как формулы. Префикс с апострофом
+ * заставляет сохранить значение как текст; апостроф в ячейке не виден.
+ * @param {*} value
+ * @returns {string}
+ */
+export function escapeSheetFormula(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (!text) return text;
+
+  if (/^\s*[=+\-@]/.test(text) || /^[\t\r]/.test(text)) {
+    return `'${text}`;
+  }
+
+  return text;
+}
+
+/**
+ * Строка транзакции в порядке колонок A:G.
+ * B и D оставляем пустыми, чтобы не затирать формулы.
+ * @param {{date: string, amount: number, category: string, wallet: string, note: string}} tx
+ * @returns {Array<string|number>}
+ */
+export function buildTransactionRow({ date, amount, category, wallet, note }) {
+  return [date, "", amount, "", category, wallet, escapeSheetFormula(note)];
+}
+
+/**
+ * Две строки перевода: списание с источника и зачисление получателю.
+ * @param {{date: string, amount: number, category: string, fromWallet: string, toWallet: string, note: string}} transfer
+ * @returns {Array<Array<string|number>>}
+ */
+export function buildTransferRows({
+  date,
+  amount,
+  category,
+  fromWallet,
+  toWallet,
+  note,
+}) {
+  const value = Math.abs(amount);
+  const safeNote = escapeSheetFormula(note);
+
+  return [
+    [date, "", -value, "", category, fromWallet, safeNote],
+    [date, "", value, "", category, toWallet, safeNote],
+  ];
 }
 
 // функция проверки доступа
