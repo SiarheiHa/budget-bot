@@ -22,6 +22,7 @@ import {
 } from "../keyboards.js";
 import { MESSAGES } from "../messages.js";
 import {
+  checkAccess,
   createAccessMiddleware,
   formatDateToDisplay,
   parseAmount,
@@ -489,6 +490,8 @@ async function confirmDelete(bot, deps, chatId, messageId, row) {
 
 export async function handleTransactionText(bot, deps, msg) {
   const chatId = msg.chat.id;
+  if (!checkAccess(chatId, deps.config)) return false;
+
   const peeked = deps.state.peek
     ? deps.state.peek(chatId)
     : deps.state.get(chatId);
@@ -696,7 +699,7 @@ export async function handleTransactionCallback(
 
   const [, action, rawRow, field, rawIndex] = parts;
   const row = Number(rawRow);
-  if (!Number.isInteger(row)) return {};
+  if (!Number.isInteger(row) || row < 2) return {};
 
   if (action === "close" || action === "close-edited") {
     deps.state.del(chatId);

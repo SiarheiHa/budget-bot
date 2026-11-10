@@ -26,6 +26,7 @@ function setup(options = {}) {
   const transaction =
     "transaction" in options ? options.transaction : TRANSACTION;
   const deps = createDeps(options.state || {}, {
+    ...(options.config ? { config: options.config } : {}),
     sheets: {
       getLastTransaction: async () => transaction,
       getTransaction: async (row) =>
@@ -495,4 +496,33 @@ test("transactionHandler: отсутствие следующей строки �
     text: MESSAGES.TRANSACTION_VIEW.NO_NEXT,
     show_alert: true,
   });
+});
+
+test("transactionHandler: номер строки меньше 2 отклоняется", async () => {
+  const { bot, deletedRows } = setup();
+
+  await emitCallback(bot, "tx:delete:1", 55);
+
+  assert.equal(deletedRows.length, 0);
+  assert.equal(bot.edits.length, 0);
+  assert.equal(bot.sent.length, 0);
+});
+
+test("transactionHandler: текст без доступа не меняет транзакцию", async () => {
+  const { bot, deps, updates } = setup({
+    config: { allowedUsers: ["2"] },
+  });
+  deps.state.set("1", {
+    step: "tx-edit",
+    txRow: 12,
+    txField: "amount",
+    txAmountDraft: "1",
+    cardMessageId: 55,
+  });
+
+  await emitMessage(bot, "300");
+
+  assert.equal(updates.length, 0);
+  assert.equal(bot.deleted.length, 0);
+  assert.equal(bot.edits.length, 0);
 });

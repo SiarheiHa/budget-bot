@@ -460,6 +460,8 @@ export function createSheets({ config, logger, valuesApi } = {}) {
       lastRowCache = { value: row, ts: Date.now() };
       rowCache.clear();
       windowCache.clear();
+    } else {
+      clearTransactionCaches();
     }
 
     return row;

@@ -211,6 +211,34 @@ test("transactions: updateTransaction пишет только A, C и E:G", asyn
   ]);
 });
 
+test("transactions: append без updatedRange сбрасывает кеш последней строки", async () => {
+  const service = [["12"]];
+  const { sheets } = setup({
+    service,
+    rowsByRange: {
+      "Transactions!A12:G12": [transactionValues()],
+      "Transactions!A13:G13": [
+        transactionValues({ date: "13.11.2026", note: "следующая" }),
+      ],
+    },
+  });
+
+  await sheets.getLastTransaction();
+
+  service[0][0] = "13";
+  await sheets.appendTransaction({
+    date: "13.11.2026",
+    amount: 100,
+    category: "Еда",
+    wallet: "Карта",
+    note: "следующая",
+  });
+
+  const transaction = await sheets.getLastTransaction();
+  assert.equal(transaction.row, 13);
+  assert.equal(transaction.note, "следующая");
+});
+
 test("transactions: appendTransaction возвращает и кеширует последнюю строку", async () => {
   const { valuesApi, sheets } = setup({
     appendRange: "Transactions!A15:G15",
