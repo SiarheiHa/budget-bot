@@ -108,36 +108,17 @@ function formatTransactionText(transaction, { title = true } = {}) {
   return lines.join("\n");
 }
 
-async function isTransfer(deps, transaction) {
-  try {
-    const categories = await deps.sheets.getCategories();
-    return (
-      categories.find((category) => category.name === transaction.category)
-        ?.type === "transfer"
-    );
-  } catch (error) {
-    deps.logger.warn(
-      `Не удалось определить тип категории: ${error.message}`
-    );
-    return false;
-  }
-}
-
-function buildView(transaction, transfer, { edited = false } = {}) {
-  let text = formatTransactionText(transaction);
-  if (transfer) {
-    text += `\n\n${MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED}`;
-  }
-
-  const keyboard = createTransactionKeyboard({
-    row: transaction.row,
-    canEdit: !transfer,
-    canDelete: !transfer,
-    nav: true,
-    edited,
-  });
-
-  return { text, keyboard };
+function buildView(transaction, { edited = false } = {}) {
+  return {
+    text: formatTransactionText(transaction),
+    keyboard: createTransactionKeyboard({
+      row: transaction.row,
+      canEdit: true,
+      canDelete: true,
+      nav: true,
+      edited,
+    }),
+  };
 }
 
 async function editOrSend(bot, logger, chatId, messageId, text, keyboard) {
@@ -166,8 +147,7 @@ async function renderTransaction(
   messageId,
   { prefix = "", edited = false } = {}
 ) {
-  const transfer = await isTransfer(deps, transaction);
-  const { text, keyboard } = buildView(transaction, transfer, { edited });
+  const { text, keyboard } = buildView(transaction, { edited });
   const fullText = prefix ? `${prefix}\n\n${text}` : text;
   return editOrSend(
     bot,
@@ -461,9 +441,6 @@ async function confirmDelete(bot, deps, chatId, messageId, row) {
     const transaction = await getTransaction(deps, row);
     if (!transaction) {
       return { alert: MESSAGES.TRANSACTION_VIEW.NOT_FOUND };
-    }
-    if (await isTransfer(deps, transaction)) {
-      return { alert: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED };
     }
 
     await deps.sheets.deleteTransaction(row);
@@ -762,10 +739,6 @@ export async function handleTransactionCallback(
   }
 
   if (action === "delete") {
-    if (await isTransfer(deps, transaction)) {
-      return { alert: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED };
-    }
-
     await editOrSend(
       bot,
       logger,
@@ -826,18 +799,10 @@ export async function handleTransactionCallback(
   }
 
   if (action === "edit") {
-    if (await isTransfer(deps, transaction)) {
-      return { alert: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED };
-    }
-
     return showEditMenu(bot, deps, chatId, transaction, messageId);
   }
 
   if (action === "edit-field") {
-    if (await isTransfer(deps, transaction)) {
-      return { alert: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED };
-    }
-
     return showEditPrompt(
       bot,
       deps,
@@ -849,10 +814,6 @@ export async function handleTransactionCallback(
   }
 
   if (action === "edit-pick") {
-    if (await isTransfer(deps, transaction)) {
-      return { alert: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED };
-    }
-
     const items =
       field === "category"
         ? await getEditCategories(deps)

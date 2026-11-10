@@ -133,22 +133,23 @@ test("transactionHandler: активный диалог блокирует пр�
   assert.equal(bot.sent[0].text, MESSAGES.TRANSACTION_VIEW.BUSY);
 });
 
-test("transactionHandler: перевод нельзя удалить", async () => {
-  const { bot } = setup({
+test("transactionHandler: перевод можно удалить", async () => {
+  const { bot, deletedRows } = setup({
     transaction: { ...TRANSACTION, category: "Перевод" },
   });
 
   await emitText(bot, "/last");
 
-  assert.match(
-    bot.sent[0].text,
-    /Редактирование и удаление переводов пока не поддерживается/
-  );
-  assert.deepEqual(keyboardCallbacks(bot), [
-    "tx:prev:12",
-    "tx:next:12",
-    "tx:close:12",
-  ]);
+  const callbacks = keyboardCallbacks(bot);
+  assert.ok(callbacks.includes("tx:edit:12"));
+  assert.ok(callbacks.includes("tx:delete:12"));
+
+  await emitCallback(bot, "tx:delete:12", 55);
+  assert.equal(deletedRows.length, 0);
+  assert.match(bot.edits.at(-1).text, /Удалить эту транзакцию/);
+
+  await emitCallback(bot, "tx:confirm-delete:12", 55);
+  assert.deepEqual(deletedRows, [12]);
 });
 
 test("transactionHandler: удаление требует подтверждения", async () => {
@@ -420,18 +421,21 @@ test("transactionHandler: отмена редактирования возвра
   assert.match(bot.edits.at(-1).text, /Транзакция 12/);
 });
 
-test("transactionHandler: перевод нельзя редактировать", async () => {
-  const { bot, deps } = setup({
+test("transactionHandler: перевод можно редактировать", async () => {
+  const { bot, deps, updates } = setup({
     transaction: { ...TRANSACTION, category: "Перевод" },
   });
 
   await emitCallback(bot, "tx:edit:12", 55);
 
-  assert.equal(deps.store.has("1"), false);
-  assert.deepEqual(bot.answers.at(-1).options, {
-    text: MESSAGES.TRANSACTION_VIEW.TRANSFER_LOCKED,
-    show_alert: true,
-  });
+  assert.equal(deps.store.get("1").step, "tx-edit");
+  assert.match(bot.edits.at(-1).text, /Что изменить/);
+
+  await emitCallback(bot, "tx:edit-field:12:amount", 55);
+  await emitMessage(bot, "300");
+
+  assert.equal(updates[0].row, 12);
+  assert.equal(updates[0].data.amount, 300);
 });
 
 test("transactionHandler: удалённая строка не сохраняет правку", async () => {
