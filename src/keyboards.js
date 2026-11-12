@@ -55,33 +55,27 @@ export function createAmountKeyboard(options = {}) {
     text: value,
     callback_data: `${prefix}:d:${value}`,
   });
-
-  const secondRow = [digit("4"), digit("5"), digit("6")];
-  if (allowSign) {
-    secondRow.push({ text: "±", callback_data: `${prefix}:sign` });
-  }
+  const digitRows = [
+    ["1", "2", "3"],
+    ["4", "5", "6"],
+    ["7", "8", "9"],
+  ].map((row) => row.map(digit));
+  const utilityRow = [
+    ...(allowSign ? [{ text: "±", callback_data: `${prefix}:sign` }] : []),
+    { text: "Сброс", callback_data: `${prefix}:clear` },
+    { text: "✅ Готово", callback_data: `${prefix}:ok` },
+  ];
 
   return {
     reply_markup: {
       inline_keyboard: [
+        ...digitRows,
         [
-          digit("1"),
-          digit("2"),
-          digit("3"),
+          { text: ",", callback_data: `${prefix}:sep` },
+          digit("0"),
           { text: "⌫", callback_data: `${prefix}:back` },
         ],
-        secondRow,
-        [
-          digit("7"),
-          digit("8"),
-          digit("9"),
-          { text: ",", callback_data: `${prefix}:sep` },
-        ],
-        [
-          { text: "Сброс", callback_data: `${prefix}:clear` },
-          digit("0"),
-          { text: "✅ Готово", callback_data: `${prefix}:ok` },
-        ],
+        utilityRow,
         ...footer,
       ],
     },

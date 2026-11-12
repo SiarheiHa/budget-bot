@@ -246,6 +246,30 @@ test("transactionHandler: изменение суммы сохраняет и о
   );
 });
 
+test("transactionHandler: знак меняет направление строки перевода", async () => {
+  const { bot, deps, updates } = setup({
+    transaction: { ...TRANSACTION, category: "Перевод" },
+  });
+
+  await emitCallback(bot, "tx:edit:12", 55);
+  await emitCallback(bot, "tx:edit-field:12:amount", 55);
+
+  const callbacks = bot.edits
+    .at(-1)
+    .form.reply_markup.inline_keyboard.flat()
+    .map((button) => button.callback_data);
+  assert.ok(callbacks.includes("tx:amt:sign"));
+
+  await emitCallback(bot, "tx:amt:sign", 55);
+  assert.equal(deps.store.get("1").txAmountDraft, "-250");
+
+  await emitCallback(bot, "tx:amt:ok", 55);
+
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].data.amount, -250);
+  assert.equal(updates[0].data.category, "Перевод");
+});
+
 test("transactionHandler: изменённые карточки остаются при навигации", async () => {
   const { bot } = setup({
     neighbor: (row, direction) =>

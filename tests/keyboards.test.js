@@ -6,26 +6,30 @@ import {
   createNoteForceReply,
 } from "../src/keyboards.js";
 
-test("createAmountKeyboard: 4 колонки, без 00", () => {
+test("createAmountKeyboard: цифры 3x3, без 00", () => {
   const rows = createAmountKeyboard().reply_markup.inline_keyboard;
   const buttons = rows.flat().map((button) => button.callback_data);
 
-  assert.equal(rows.length, 4);
+  assert.equal(rows.length, 5);
   assert.deepEqual(
     rows[0].map((button) => button.callback_data),
-    ["v1:amt:d:1", "v1:amt:d:2", "v1:amt:d:3", "v1:amt:back"]
+    ["v1:amt:d:1", "v1:amt:d:2", "v1:amt:d:3"]
   );
   assert.deepEqual(
     rows[1].map((button) => button.callback_data),
-    ["v1:amt:d:4", "v1:amt:d:5", "v1:amt:d:6", "v1:amt:sign"]
+    ["v1:amt:d:4", "v1:amt:d:5", "v1:amt:d:6"]
   );
   assert.deepEqual(
     rows[2].map((button) => button.callback_data),
-    ["v1:amt:d:7", "v1:amt:d:8", "v1:amt:d:9", "v1:amt:sep"]
+    ["v1:amt:d:7", "v1:amt:d:8", "v1:amt:d:9"]
   );
   assert.deepEqual(
     rows[3].map((button) => button.callback_data),
-    ["v1:amt:clear", "v1:amt:d:0", "v1:amt:ok"]
+    ["v1:amt:sep", "v1:amt:d:0", "v1:amt:back"]
+  );
+  assert.deepEqual(
+    rows[4].map((button) => button.callback_data),
+    ["v1:amt:sign", "v1:amt:clear", "v1:amt:ok"]
   );
   assert.ok(!buttons.includes("v1:amt:00"));
 });
@@ -42,13 +46,17 @@ test("createAmountKeyboard: AI-вариант без знака и с футер
     ],
   }).reply_markup.inline_keyboard;
 
-  assert.equal(rows.length, 5);
+  assert.equal(rows.length, 6);
   assert.deepEqual(
     rows[1].map((button) => button.callback_data),
     ["ai:amt:d:4", "ai:amt:d:5", "ai:amt:d:6"]
   );
   assert.deepEqual(
     rows[4].map((button) => button.callback_data),
+    ["ai:amt:clear", "ai:amt:ok"]
+  );
+  assert.deepEqual(
+    rows[5].map((button) => button.callback_data),
     ["ai:back", "ai:cancel"]
   );
 });

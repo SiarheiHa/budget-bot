@@ -208,7 +208,6 @@ async function renderAmountEditor(
 
   const keyboard = createAmountKeyboard({
     prefix: TX_AMOUNT_PREFIX,
-    allowSign: false,
     footer: [
       [
         { text: "Назад", callback_data: `tx:edit:${row}` },
